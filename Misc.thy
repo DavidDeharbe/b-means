@@ -30,23 +30,23 @@ qed
 
 lemma relcomp_pair:
   assumes
-    g1: "\<forall>x\<in>X. \<exists>y\<in>Y. (f x, f y) \<in> r \<and> (g x, g y) \<in> r" and
-    g2: "\<forall>y\<in>Y. \<exists>z\<in>Z. (f y, f z) \<in> s \<and> (g y, g z) \<in> s"
+    g1: "\<forall>x\<in>X. \<exists>y\<in>Y. (f x, f y) \<in> r \<and> (g x, g y) \<in> r \<and> h x = h y" and
+    g2: "\<forall>y\<in>Y. \<exists>z\<in>Z. (f y, f z) \<in> s \<and> (g y, g z) \<in> s \<and> h y = h z"
   shows
-    "\<forall>x\<in>X. \<exists>z\<in>Z. (f x, f z) \<in> r O s \<and> (g x, g z) \<in> r O s"
+    "\<forall>x\<in>X. \<exists>z\<in>Z. (f x, f z) \<in> r O s \<and> (g x, g z) \<in> r O s \<and> h x = h z"
 proof
   fix a
   assume da: "a \<in> X"
-  show "\<exists> z \<in> Z . (f a, f z) \<in> r O s \<and> (g a, g z) \<in> r O s"
+  show "\<exists> z \<in> Z . (f a, f z) \<in> r O s \<and> (g a, g z) \<in> r O s \<and> h a = h z"
   proof -
-    from g1 and da obtain b where w1: "b \<in> Y \<and>(f a, f b) \<in> r \<and> (g a, g b) \<in> r" by auto
+    from g1 and da obtain b where w1: "b \<in> Y \<and>(f a, f b) \<in> r \<and> (g a, g b) \<in> r \<and> h a = h b" by auto
   moreover
     from w1 have db: "b : Y" by (rule conjE)
-    with g2 obtain c where w2: "c \<in> Z \<and> (f b, f c) \<in> s \<and> (g b, g c) \<in> s" by auto
+    with g2 obtain c where w2: "c \<in> Z \<and> (f b, f c) \<in> s \<and> (g b, g c) \<in> s \<and> h b = h c" by auto
   moreover
     from w2 have dc: "c \<in> Z" by (rule conjE)
   moreover
-    from w1 and w2 have w: "(f a, f c) \<in> r O s \<and> (g a, g c) \<in> r O s" by auto
+    from w1 and w2 have w: "(f a, f c) \<in> r O s \<and> (g a, g c) \<in> r O s \<and> h a = h c" by auto
     with dc show ?thesis by auto
   qed
 qed

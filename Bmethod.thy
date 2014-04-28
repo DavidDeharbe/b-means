@@ -10,14 +10,16 @@ text {* We consider states and transitions as basic entities, and declare types 
 
 typedecl STATE
 typedecl TRANSITION
+typedecl IO
 
-(* functions to retrieve the source and destination of a transition *)
+(* functions to retrieve the source, destination and input/output of a transition *)
 
 consts Src :: "TRANSITION \<Rightarrow> STATE"
 consts Dst :: "TRANSITION \<Rightarrow> STATE"
+consts Io :: "TRANSITION \<Rightarrow> IO"
 
-definition Joins :: "TRANSITION \<Rightarrow> (STATE \<times> STATE)" where
-  "Joins t \<equiv> (Src t, Dst t)"
+definition Joins :: "TRANSITION \<Rightarrow> (STATE \<times> IO \<times> STATE)" where
+  "Joins t \<equiv> (Src t, Io t, Dst t)"
 
 
 (* B machines are discrete transition systems. 
@@ -84,10 +86,16 @@ qed
 
 subsection {* Observable behaviour: a set of traces *}
 
-definition traces :: "MACHINE \<Rightarrow> STATE list set" where
-"traces m \<equiv> lfp (\<lambda> S . { [s] | s . s \<in> Init m } \<union> { tr @ [s] | tr s . tr \<in> S \<and> (last tr, s) \<in> succ_rel m })"
+definition traces :: "MACHINE \<Rightarrow> (STATE \<times> TRANSITION list) set" where
+"traces m \<equiv> lfp (\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
+                        { (s, trl @ [t]) | s trl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
+                          (\<exists> tr \<in> S . trl = snd tr) \<and>
+                          (trl = [] \<and> Src t = s \<or> trl \<noteq> [] \<and> Src t = Dst (last trl)) })"
 
-lemma mono_traces: "mono( \<lambda> S . { [s] | s . s \<in> Init m } \<union> { tr @ [s] | tr s . tr \<in> S \<and> (last tr, s) \<in> succ_rel m })" 
+lemma mono_traces: "mono((\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
+                                { (s, tl @ [t]) | s tl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
+                                    (\<exists> y \<in> S . y = snd tr) \<and>
+                                    (tl = [] \<and> Src t = s \<or> tl \<noteq> [] \<and> Src t = Dst (last tl)) }))"
 proof(rule monoI, blast)
 qed
 
@@ -110,7 +118,7 @@ definition sound_REFINEMENT_init :: "REFINEMENT \<Rightarrow> bool" where
 
 definition sound_REFINEMENT_trans :: "REFINEMENT \<Rightarrow> bool" where
 "sound_REFINEMENT_trans r \<equiv> \<forall> tc \<in> Trans (Concrete r) . \<exists> ta \<in> Trans (Abstract r) .
-(Src tc, Src ta) \<in> Glue r \<and> (Dst tc, Dst ta) \<in> Glue r" 
+(Src tc, Src ta) \<in> Glue r \<and> (Dst tc, Dst ta) \<in> Glue r \<and> Io tc = Io ta" 
 
 definition sound_REFINEMENT :: "REFINEMENT \<Rightarrow> bool" where
 "sound_REFINEMENT r \<equiv> sound_REFINEMENT_init r \<and> sound_REFINEMENT_trans r"
@@ -185,17 +193,17 @@ next
     have t: "sound_REFINEMENT_trans rv"
       proof (simp add:sound_REFINEMENT_trans_def rv_def)
         have 
-          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<Longrightarrow>
-           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Concrete r1). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2 \<Longrightarrow>
-           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1"
+          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Io tc = Io ta \<Longrightarrow>
+           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Concrete r1). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2  \<and> Io tc = Io ta \<Longrightarrow>
+           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1 \<and> Io tc = Io ta"
           by (simp add: relcomp_pair)
         moreover
           with guard have "Trans (Concrete r1) = Trans (Abstract r2)" by simp
         ultimately
         show
-          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<Longrightarrow>
-           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Abstract r2). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2 \<Longrightarrow>
-           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1"
+          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Io tc = Io ta \<Longrightarrow>
+           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Abstract r2). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2 \<and> Io tc = Io ta \<Longrightarrow>
+           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1 \<and> Io tc = Io ta"
           by simp
       qed
   ultimately
@@ -237,3 +245,4 @@ next
   from assms(3) show "Concrete r2 = Abstract r3" by simp
 qed
 
+end
