@@ -11,9 +11,9 @@ Roadmap
 
 * B components as state-transition systems. 
 
-** Define the notion of reachability.
+  * Define the notion of reachability.
 
-** Show some basic properties about reachability.
+  * Show some basic properties about reachability.
 
 * Observable behaviour of a B component as a set of traces.
 
@@ -23,10 +23,10 @@ their state space.
 
 * Composition of refinements.
 
-** Define an identity refinement, show it is neutral for the
+  * Define an identity refinement, show it is neutral for the
 composition of refinements.
 
-** Property: transitivity.
+  * Property: transitivity.
 
 * Enrich the semantics associating input and outputs to the transitions.
 

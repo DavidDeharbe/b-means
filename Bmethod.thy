@@ -161,17 +161,17 @@ proof(cases "Concrete r1 = Abstract r2")
 next
   def rv \<equiv> "\<lparr> Abstract = Abstract r1, Concrete = Concrete r2, Glue = Glue r2 O Glue r1 \<rparr>"
   case True
-    from this have guard : "Concrete r1 = Abstract r2" .
+    then have guard : "Concrete r1 = Abstract r2" .
     hence "refinement_compose r1 r2 = Some rv"
-    by (simp add:refinement_compose_def rv_def)
+      by (simp add:refinement_compose_def rv_def)
     with assms(3)
-    have r: "r = rv" by simp
+      have r: "r = rv" by simp
     from assms(2)
-    have i2: "sound_REFINEMENT_init r2" by (simp add: sound_REFINEMENT_def)
+      have i2: "sound_REFINEMENT_init r2" by (simp add: sound_REFINEMENT_def)
     from assms(1)
-    have i1: "sound_REFINEMENT_init r1" by (simp add: sound_REFINEMENT_def)    
+      have i1: "sound_REFINEMENT_init r1" by (simp add: sound_REFINEMENT_def)    
     from i2 and i1
-    have i: "sound_REFINEMENT_init rv"
+      have i: "sound_REFINEMENT_init rv"
     proof(simp add:sound_REFINEMENT_init_def rv_def)
       have "\<forall>s\<in>Init (Concrete r2). \<exists>sa\<in>Init (Abstract r2). (s, sa) \<in> Glue r2 \<Longrightarrow>
             \<forall>s\<in>Init (Abstract r2). \<exists>sa\<in>Init (Abstract r1). (s, sa) \<in> Glue r1 \<Longrightarrow> 
@@ -186,11 +186,11 @@ next
     qed
   moreover  
     from assms(1)
-    have t1: "sound_REFINEMENT_trans r1" by (simp add: sound_REFINEMENT_def)
+      have t1: "sound_REFINEMENT_trans r1" by (simp add: sound_REFINEMENT_def)
     from assms(2)
-    have t2: "sound_REFINEMENT_trans r2" by (simp add: sound_REFINEMENT_def)
+      have t2: "sound_REFINEMENT_trans r2" by (simp add: sound_REFINEMENT_def)
     from t1 and t2
-    have t: "sound_REFINEMENT_trans rv"
+      have t: "sound_REFINEMENT_trans rv"
       proof (simp add:sound_REFINEMENT_trans_def rv_def)
         have 
           "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Io tc = Io ta \<Longrightarrow>
@@ -208,7 +208,7 @@ next
       qed
   ultimately
     have "sound_REFINEMENT rv" 
-    by (simp add:sound_REFINEMENT_def)
+      by (simp add:sound_REFINEMENT_def)
     with r show "sound_REFINEMENT r" by simp
 qed
 
