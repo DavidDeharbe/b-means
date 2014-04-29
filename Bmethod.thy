@@ -10,16 +10,16 @@ text {* We consider states and transitions as basic entities, and declare types 
 
 typedecl STATE
 typedecl TRANSITION
-typedecl IO
+typedecl EVENT
 
 (* functions to retrieve the source, destination and input/output of a transition *)
 
 consts Src :: "TRANSITION \<Rightarrow> STATE"
 consts Dst :: "TRANSITION \<Rightarrow> STATE"
-consts Io :: "TRANSITION \<Rightarrow> IO"
+consts Evt :: "TRANSITION \<Rightarrow> EVENT"
 
-definition Joins :: "TRANSITION \<Rightarrow> (STATE \<times> IO \<times> STATE)" where
-  "Joins t \<equiv> (Src t, Io t, Dst t)"
+definition Joins :: "TRANSITION \<Rightarrow> (STATE \<times> EVENT \<times> STATE)" where
+  "Joins t \<equiv> (Src t, Evt t, Dst t)"
 
 
 (* B machines are discrete transition systems. 
@@ -34,7 +34,7 @@ record MACHINE =
 definition wd_MACHINE_Init :: "MACHINE \<Rightarrow> bool" where
 "wd_MACHINE_Init m \<equiv> Init m \<subseteq> State m"
 
-(* Condition 2 : the transition is a binary relation on the set of states *)
+(* Condition 2 : the transition is a relation on the set of states *)
 definition wd_MACHINE_Trans :: "MACHINE \<Rightarrow> bool" where
 "wd_MACHINE_Trans m \<equiv> \<forall> t . t \<in> Trans m \<longrightarrow> Src t \<in> State m \<longrightarrow> Dst t \<in> State m"
 
@@ -118,7 +118,7 @@ definition sound_REFINEMENT_init :: "REFINEMENT \<Rightarrow> bool" where
 
 definition sound_REFINEMENT_trans :: "REFINEMENT \<Rightarrow> bool" where
 "sound_REFINEMENT_trans r \<equiv> \<forall> tc \<in> Trans (Concrete r) . \<exists> ta \<in> Trans (Abstract r) .
-(Src tc, Src ta) \<in> Glue r \<and> (Dst tc, Dst ta) \<in> Glue r \<and> Io tc = Io ta" 
+(Src tc, Src ta) \<in> Glue r \<and> (Dst tc, Dst ta) \<in> Glue r \<and> Evt tc = Evt ta" 
 
 definition sound_REFINEMENT :: "REFINEMENT \<Rightarrow> bool" where
 "sound_REFINEMENT r \<equiv> sound_REFINEMENT_init r \<and> sound_REFINEMENT_trans r"
@@ -193,17 +193,17 @@ next
       have t: "sound_REFINEMENT_trans rv"
       proof (simp add:sound_REFINEMENT_trans_def rv_def)
         have 
-          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Io tc = Io ta \<Longrightarrow>
-           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Concrete r1). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2  \<and> Io tc = Io ta \<Longrightarrow>
-           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1 \<and> Io tc = Io ta"
+          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Evt tc = Evt ta \<Longrightarrow>
+           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Concrete r1). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2  \<and> Evt tc = Evt ta \<Longrightarrow>
+           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1 \<and> Evt tc = Evt ta"
           by (simp add: relcomp_pair)
         moreover
           with guard have "Trans (Concrete r1) = Trans (Abstract r2)" by simp
         ultimately
         show
-          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Io tc = Io ta \<Longrightarrow>
-           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Abstract r2). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2 \<and> Io tc = Io ta \<Longrightarrow>
-           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1 \<and> Io tc = Io ta"
+          "\<forall>tc\<in>Trans (Concrete r1). \<exists>ta\<in>Trans (Abstract r1). (Src tc, Src ta) \<in> Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r1 \<and> Evt tc = Evt ta \<Longrightarrow>
+           \<forall>tc\<in>Trans (Concrete r2). \<exists>ta\<in>Trans (Abstract r2). (Src tc, Src ta) \<in> Glue r2 \<and> (Dst tc, Dst ta) \<in> Glue r2 \<and> Evt tc = Evt ta \<Longrightarrow>
+           \<forall>tc\<in>Trans(Concrete r2). \<exists>ta\<in>Trans(Abstract r1). (Src tc, Src ta) \<in> Glue r2 O Glue r1 \<and> (Dst tc, Dst ta) \<in> Glue r2 O Glue r1 \<and> Evt tc = Evt ta"
           by simp
       qed
   ultimately
