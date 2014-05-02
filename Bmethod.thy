@@ -163,7 +163,8 @@ theorem machine_po:
   shows "correct_MACHINE m"
 proof-
   from assms have "\<forall>s\<in>reachable (Lts m). (Inv m) s"
-    sorry (* by (simp add:reachable_induct_pred[of "(Lts m)" "(Inv m)"]) *)
+    proof(rule reachable_induct_pred[of "Lts m" "Inv m"])
+    qed
   then show ?thesis by (simp only:correct_MACHINE_def)
 qed
 
