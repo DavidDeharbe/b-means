@@ -30,3 +30,14 @@ composition of refinements.
 
 * Enrich the semantics associating input and outputs to the transitions.
 
+* Improve the semantic model by distinguishing LTS and machine (LTS plus
+safety condition).
+
+* Improve the semantic model by distinguish path (internal behaviour: states
+and transitions) and trace (external behavior: events on transitions).
+
+* Prove sufficient conditions to establish a safety property w.r.t. initial
+states and transition relation.
+
+* [TODO] Establish a relation between refinement and traces.
+

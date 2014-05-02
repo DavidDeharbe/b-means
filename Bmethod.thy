@@ -4,111 +4,188 @@ imports Main Misc
 
 begin
 
-section {* B components as state-transition systems *}
+section {* State-transition systems *}
 
-text {* We consider states and transitions as basic entities, and declare types for those entities. *}
+text {* The semantics of a B component is a discrete, eventful, state-transition systems. We 
+first define what is meant exactly by such systems. Any system is, at a given time in a state. 
+Conversely, a system has a set of possible states. A system evolves from state to state,
+and such changes called transitions. Also when a system makes a transition, this is observable
+and this observation is called an event. State, transition and event are three different
+entities and a type is declared for each: *}
 
 typedecl STATE
 typedecl TRANSITION
 typedecl EVENT
 
-(* functions to retrieve the source, destination and input/output of a transition *)
-
+text {* These different entities are related through the following functions: *}
 consts Src :: "TRANSITION \<Rightarrow> STATE"
 consts Dst :: "TRANSITION \<Rightarrow> STATE"
 consts Evt :: "TRANSITION \<Rightarrow> EVENT"
 
-definition Joins :: "TRANSITION \<Rightarrow> (STATE \<times> EVENT \<times> STATE)" where
-  "Joins t \<equiv> (Src t, Evt t, Dst t)"
-
-
 (* B machines are discrete transition systems. 
    Their are specified as a record type with associated well-definedness conditions. *)
 
-record MACHINE =
+record LTS =
   State :: "STATE set" (* a set of states *)
   Init :: "STATE set" (* a set of initial states *)
   Trans :: "TRANSITION set" (* a set of transitions *)
   
 (* Condition 1 : the initial states are in the set of states *)
-definition wd_MACHINE_Init :: "MACHINE \<Rightarrow> bool" where
-"wd_MACHINE_Init m \<equiv> Init m \<subseteq> State m"
+definition wd_LTS_Init :: "LTS \<Rightarrow> bool" where
+"wd_LTS_Init m \<equiv> Init m \<subseteq> State m"
 
 (* Condition 2 : the transition is a relation on the set of states *)
-definition wd_MACHINE_Trans :: "MACHINE \<Rightarrow> bool" where
-"wd_MACHINE_Trans m \<equiv> \<forall> t . t \<in> Trans m \<longrightarrow> Src t \<in> State m \<longrightarrow> Dst t \<in> State m"
+definition wd_LTS_Trans :: "LTS \<Rightarrow> bool" where
+"wd_LTS_Trans m \<equiv> \<forall> t . t \<in> Trans m \<longrightarrow> Src t \<in> State m \<longrightarrow> Dst t \<in> State m"
 
 (* A well-defined machine must satisfy both conditions *)
 
-definition wd_MACHINE :: "MACHINE \<Rightarrow> bool" where
-"wd_MACHINE m \<equiv> wd_MACHINE_Init m \<and> wd_MACHINE_Trans m"
+definition wd_LTS :: "LTS \<Rightarrow> bool" where
+"wd_LTS m \<equiv> wd_LTS_Init m \<and> wd_LTS_Trans m"
 
 (* To use Isabelle machinery for relations, we define a successor relation *)
-definition succ_rel :: "MACHINE \<Rightarrow> STATE rel" where
+definition succ_rel :: "LTS \<Rightarrow> STATE rel" where
 "succ_rel m \<equiv> { p. \<exists> t . p = (Src t, Dst t) \<and> t \<in> (Trans m) }"
   
+(* To use Isabelle machinery for relations, we define a successor relation *)
+definition succ :: "LTS \<Rightarrow> STATE set \<Rightarrow> STATE set" where
+"succ m s \<equiv> succ_rel m `` s"
+  
 (* Then we have the notion of the reachable states of a machine *)
-definition reachable :: "MACHINE \<Rightarrow> STATE set" where
-"reachable m \<equiv> lfp(\<lambda> S . Init m \<union> (succ_rel m) `` S)"
+definition reachable :: "LTS \<Rightarrow> STATE set" where
+"reachable m \<equiv> lfp(\<lambda> S . Init m \<union> succ m S)"
 
 (* The lambda-term defining the fixpoint is monotonic *)
-lemma mono_reachable: "mono( \<lambda>T. Init m \<union> (succ_rel m) `` S)" 
+lemma mono_reachable: "mono( \<lambda>T. Init m \<union> succ m S)" 
 proof(rule monoI, blast)
 qed
 
 text {* A few lemmas related to reachable states are then enunciated and proved. First, all the initial states are reachable states:*}
 lemma reachable_init:
-assumes wd: "wd_MACHINE m" shows "Init m \<subseteq> reachable m"
+assumes wd: "wd_LTS m" shows "Init m \<subseteq> reachable m"
 proof(simp add:reachable_def lfp_def, blast)
 qed
 
 text {* Next we have that the successors of any set of reachable states are reachable.*}
 lemma reachable_stable:
 assumes hyp: "s \<subseteq> reachable m" 
-shows "succ_rel m `` s \<subseteq> reachable m"
+shows "succ m s \<subseteq> reachable m"
 proof-
-  from assms have 1: "succ_rel m `` s \<subseteq> succ_rel m `` reachable m" by (blast)
-  have "succ_rel m `` reachable m \<subseteq> reachable m"  by (simp only:reachable_def lfp_def, blast)
-  with 1 show "succ_rel m `` s \<subseteq> reachable m" by blast
+  from assms have 1: "succ m s \<subseteq> succ m (reachable m)" by (simp only:succ_def, blast)
+  have "succ m (reachable m) \<subseteq> reachable m"  by (simp only:succ_def reachable_def lfp_def, blast)
+  with 1 show "succ m s \<subseteq> reachable m" by blast
 qed
 
 text {* The following lemma is related to the identification of sufficient conditions to establish safety properties. Consider
 a property that is satisfied by some set of states $S$. If the initial states are in $S$, and if the successors of $S$ are in $S$ then
 all the reachable states are in $S$. *}
 lemma reachable_induct:
-  assumes base: "Init m \<subseteq> S" and step: "(succ_rel m) `` S \<subseteq> S"
+  assumes base: "Init m \<subseteq> S" and step: "succ m S \<subseteq> S"
   shows "(reachable m) \<subseteq> S"
 proof-
-  from assms have "Init m \<union> succ_rel m `` S \<subseteq> S" by blast
-  hence "lfp (\<lambda> S . Init m \<union> succ_rel m `` S) \<subseteq> S" by (rule lfp_lowerbound)
+  from assms have "Init m \<union> succ m S \<subseteq> S" by blast
+  hence "lfp (\<lambda> S . Init m \<union> succ m S) \<subseteq> S" by (rule lfp_lowerbound)
   thus "(reachable m) \<subseteq> S" unfolding reachable_def .
 qed
 
-subsection {* Observable behaviour: a set of traces *}
+text {* The next lemma is similar, but for safety properties expressed as predicates over states instead of sets of states. *}
 
-definition traces :: "MACHINE \<Rightarrow> (STATE \<times> TRANSITION list) set" where
-"traces m \<equiv> lfp (\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
+lemma reachable_induct_pred:
+  assumes base: "\<forall> s \<in> Init m . p s" and step: "\<forall> s . p s \<longrightarrow> (\<forall> s' \<in> succ m {s} . p s')"
+  shows "\<forall> s \<in> reachable m . p s"
+proof -
+  let ?S = "{ x | x . p x }"
+  from base have 1: "Init m \<subseteq> ?S " by auto
+  from step have "\<forall> s \<in> ?S . succ m { s } \<subseteq> ?S" by auto
+  then have "\<forall> x . x \<in> succ m ?S \<longrightarrow> x \<in> ?S"
+    proof(simp only:succ_def, auto)
+    qed
+  then have 2: "succ m ?S \<subseteq> ?S" by auto
+  from 1 and 2 have "reachable m \<subseteq> ?S" by (simp add:reachable_induct)
+  from this show "\<forall>s \<in> reachable m . p s" by auto
+qed
+
+subsection {* Behaviour: a set of traces *}
+
+text {* Two notions of behaviours for a machine are defined: internal behaviour and observable 
+behaviour. Internal behaviour is a set of paths, where each path is a pair that is composed of an
+initial state, and a possibly infinite list of consecutive transitions. The type $PATH$ corresponds
+to paths: *}
+
+type_synonym PATH = "STATE \<times> TRANSITION list"
+
+text {* Then, the function $paths$ yields the internal behaviour of a machine: *}
+
+definition paths :: "LTS \<Rightarrow> PATH set" where
+"paths m \<equiv> lfp (\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
                         { (s, trl @ [t]) | s trl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
                           (\<exists> tr \<in> S . trl = snd tr) \<and>
                           (trl = [] \<and> Src t = s \<or> trl \<noteq> [] \<and> Src t = Dst (last trl)) })"
 
-lemma mono_traces: "mono((\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
-                                { (s, tl @ [t]) | s tl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
+lemma mono_paths: "mono((\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
+                               { (s, tl @ [t]) | s tl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
                                     (\<exists> y \<in> S . y = snd tr) \<and>
                                     (tl = [] \<and> Src t = s \<or> tl \<noteq> [] \<and> Src t = Dst (last tl)) }))"
 proof(rule monoI, blast)
 qed
 
+text {* External behaviour of a machine is the set of possible sequences of events. Each such
+sequence corresponds to the events occurring along a path, as is defined for function $path\_events$: *}
+
+definition path_events :: "PATH \<Rightarrow> EVENT list" where
+"path_events p = map Evt (snd p)"
+
+text {* External behaviour is given by the function $traces$: *}
+
+definition traces :: "LTS \<Rightarrow> EVENT list set" where
+"traces m \<equiv> { path_events p | p . p \<in> paths m } "
+
+section {* B machine *}
+
+text {* A B machine is a state-transition system together with an invariant. An invariant
+is a predicate on the states of the system. *}
+
+record MACHINE =
+  Lts :: LTS
+  Inv :: "STATE \<Rightarrow> bool"
+
+text {* A B machine is considered correct when all the reachable states satisfy the
+        invariant. *}
+
+definition correct_MACHINE :: "MACHINE \<Rightarrow> bool" where
+  "correct_MACHINE m \<equiv> \<forall> s \<in> reachable (Lts m) . (Inv m) s"
+
+text {* The following theorem states two sufficient conditions to establish that a machine is
+        correct. *}
+theorem machine_po:
+  assumes poinit: "\<forall> s \<in> Init (Lts m) . (Inv m) s" 
+      and postep: "\<forall> s . (Inv m) s \<longrightarrow> (\<forall> s' \<in> succ (Lts m) {s} . (Inv m) s')"
+  shows "correct_MACHINE m"
+proof-
+  from assms have "\<forall>s\<in>reachable (Lts m). (Inv m) s"
+    sorry (* by (simp add:reachable_induct_pred[of "(Lts m)" "(Inv m)"]) *)
+  then show ?thesis by (simp only:correct_MACHINE_def)
+qed
+
+(*
+proof(simp add:correct_MACHINE_def)
+  
+    from assms have "\<forall>s\<in>reachable (Lts m). Inv m s" by (simp only:reachable_induct_pred)
+    thus ?thesis .
+qed
+*)
+(*  apply(rule reachable_induct[of "Lts m" "{ s | s . (Inv m) s}"]) *)
+
 section {* B refinement: two components glued by a relation between states *}
 
 record REFINEMENT =
-  Abstract :: MACHINE
-  Concrete :: MACHINE
+  Abstract :: LTS
+  Concrete :: LTS
   Glue :: "STATE rel" (* relates Abstract to Concrete - see wd_REFINEMENT_glue *)
   
 definition wd_REFINEMENT_machines :: "REFINEMENT \<Rightarrow> bool" where
 "wd_REFINEMENT_machines r \<equiv> 
-  wd_MACHINE(Abstract r) \<and> wd_MACHINE(Concrete r)"
+  wd_LTS(Abstract r) \<and> wd_LTS(Concrete r)"
 
 definition wd_REFINEMENT_glue :: "REFINEMENT \<Rightarrow> bool" where
 "wd_REFINEMENT_glue r \<equiv> Glue r \<subseteq> State (Concrete r) \<times> State (Abstract r)"
@@ -127,7 +204,7 @@ text {* A special refinement is one that does not change anything, namely the
 identity refinement. It is defined as a function that takes a machine and
 returns the identity refinement. *}
 
-definition refinement_id :: "MACHINE \<Rightarrow> REFINEMENT" where
+definition refinement_id :: "LTS \<Rightarrow> REFINEMENT" where
 "refinement_id m \<equiv> \<lparr> Abstract = m, Concrete = m, Glue = Id \<rparr>"
 
 text {* We have that the identity refinement is sound. *}

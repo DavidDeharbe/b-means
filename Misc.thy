@@ -52,5 +52,17 @@ proof
   qed
 qed
 
+lemma set_union_elem: "S = \<Union> { { s } | s . s \<in> S }"
+proof(blast)
+qed
+
+lemma set_img_union_elem: "r `` S = \<Union> { r `` { s } | s . s \<in> S }"
+proof(blast)
+qed
+
+lemma "\<forall> s \<in> S . r `` { s } \<subseteq> R \<Longrightarrow> r `` S \<subseteq> R" 
+proof(auto)
+qed
+
 end
 
