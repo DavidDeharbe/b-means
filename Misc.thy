@@ -4,7 +4,7 @@
 
 header {* Miscellaneous helpful lemmas *}
 
-theory "Misc"
+theory Misc
 imports Main
 begin
 
@@ -30,6 +30,22 @@ proof
   qed  
 qed
 
+(* reformulation in a different style *)
+lemma Domain_comp:
+  assumes r: "Range r \<subseteq> Domain s"
+  shows "Domain (r O s) = Domain r"
+proof
+  show "Domain (r O s) \<subseteq> Domain r" by blast
+next
+  {
+    fix x y
+    assume xy: "(x,y) \<in> r"
+    with r have "y \<in> Domain s" by blast
+    with xy have "x \<in> Domain (r O s)" by blast
+  }
+  thus "Domain r \<subseteq> Domain (r O s)" by blast
+qed
+
 text {* The next lemma is much more specific. It also addresses a property of the composition of 
 binary relations that is used a transitivity property for refinements. *}
 lemma relcomp_pair:
@@ -38,6 +54,8 @@ lemma relcomp_pair:
     g2: "\<forall>y\<in>Y. \<exists>z\<in>Z. (f y, f z) \<in> s \<and> (g y, g z) \<in> s \<and> h y = h z"
   shows
     "\<forall>x\<in>X. \<exists>z\<in>Z. (f x, f z) \<in> r O s \<and> (g x, g z) \<in> r O s \<and> h x = h z"
+using assms unfolding relcomp_unfold by simp metis
+(*
 proof
   fix a
   assume da: "a \<in> X"
@@ -51,18 +69,6 @@ proof
     with dc show ?thesis by auto
   qed
 qed
-
-lemma set_union_elem: "S = \<Union> { { s } | s . s \<in> S }"
-proof(blast)
-qed
-
-lemma set_img_union_elem: "r `` S = \<Union> { r `` { s } | s . s \<in> S }"
-proof(blast)
-qed
-
-lemma "\<forall> s \<in> S . r `` { s } \<subseteq> R \<Longrightarrow> r `` S \<subseteq> R" 
-proof(auto)
-qed
-
+*)
 end
 
