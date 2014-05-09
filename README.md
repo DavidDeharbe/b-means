@@ -1,10 +1,39 @@
 Introduction
 ============
 
-The goal of this project is to define a framework to reason formally about the B method. 
+The goal of this project is to define a framework to reason formally about the B
+method.
 
-At the core of the project is the definition of a formal semantics for B in 
-the logic of a proof assistant, namely Isabelle/HOL.
+At the core of the project is the definition of a formal semantics for B in the
+logic of a proof assistant, namely Isabelle/HOL.
+
+Overview
+========
+
+* Formalize B entities Machine, Refinement
+
+* Formalize soundness
+
+  * machine: a LTS where all states satisfy their invariant
+
+  * refinement: a LTS that preserve the behavior of the refined LTS
+
+* Formalize the proof obligations of the B method
+
+  * machine:
+
+    1. initial states satisfy their invariant
+
+    2. the transition relation preserves the invariant
+
+  * refinement:
+
+    1. any concrete initial state is related to an abstract initial state
+
+    2. any transition from a concrete state related to an abstract state
+    reaches a concrete state that is also related to an abstract state
+
+* Prove that the proof obligations entail soundness
 
 Roadmap
 =======

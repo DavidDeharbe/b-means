@@ -1,213 +1,59 @@
 theory Bmethod
 
-imports Main Misc
+imports Main LTS Simulation
 
 begin
-
-section {* State-transition systems *}
-
-text {* The semantics of a B component is a discrete, eventful, state-transition systems. We 
-first define what is meant exactly by such systems. Any system is, at a given time in a state. 
-Conversely, a system has a set of possible states. A system evolves from state to state,
-and such changes called transitions. Also when a system makes a transition, this is observable
-and this observation is called an event. State, transition and event are three different
-entities and a type is declared for each: *}
-
-typedecl STATE
-typedecl TRANSITION
-typedecl EVENT
-
-text {* These different entities are related through the following functions: *}
-consts Src :: "TRANSITION \<Rightarrow> STATE"
-consts Dst :: "TRANSITION \<Rightarrow> STATE"
-consts Evt :: "TRANSITION \<Rightarrow> EVENT"
-
-(* B machines are discrete transition systems. 
-   Their are specified as a record type with associated well-definedness conditions. *)
-
-record LTS =
-  State :: "STATE set" (* a set of states *)
-  Init :: "STATE set" (* a set of initial states *)
-  Trans :: "TRANSITION set" (* a set of transitions *)
-  
-(* Condition 1 : the initial states are in the set of states *)
-definition wd_LTS_Init :: "LTS \<Rightarrow> bool" where
-"wd_LTS_Init m \<equiv> Init m \<subseteq> State m"
-
-(* Condition 2 : the transition is a relation on the set of states *)
-definition wd_LTS_Trans :: "LTS \<Rightarrow> bool" where
-"wd_LTS_Trans m \<equiv> \<forall> t . t \<in> Trans m \<longrightarrow> Src t \<in> State m \<longrightarrow> Dst t \<in> State m"
-
-(* A well-defined machine must satisfy both conditions *)
-
-definition wd_LTS :: "LTS \<Rightarrow> bool" where
-"wd_LTS m \<equiv> wd_LTS_Init m \<and> wd_LTS_Trans m"
-
-(* To use Isabelle machinery for relations, we define a successor relation *)
-definition succ_rel :: "LTS \<Rightarrow> STATE rel" where
-"succ_rel m \<equiv> { p. \<exists> t . p = (Src t, Dst t) \<and> t \<in> (Trans m) }"
-  
-(* To use Isabelle machinery for relations, we define a successor relation *)
-definition succ :: "LTS \<Rightarrow> STATE set \<Rightarrow> STATE set" where
-"succ m s \<equiv> succ_rel m `` s"
-  
-(* Then we have the notion of the reachable states of a machine *)
-definition reachable :: "LTS \<Rightarrow> STATE set" where
-"reachable m \<equiv> lfp(\<lambda> S . Init m \<union> succ m S)"
-
-(* The lambda-term defining the fixpoint is monotonic *)
-lemma mono_reachable: "mono( \<lambda>T. Init m \<union> succ m S)" 
-proof(rule monoI, blast)
-qed
-
-text {* A few lemmas related to reachable states are then enunciated and proved. First, all the initial states are reachable states:*}
-lemma reachable_init:
-assumes wd: "wd_LTS m" shows "Init m \<subseteq> reachable m"
-proof(simp add:reachable_def lfp_def, blast)
-qed
-
-text {* Next we have that the successors of any set of reachable states are reachable.*}
-lemma reachable_stable:
-assumes hyp: "s \<subseteq> reachable m" 
-shows "succ m s \<subseteq> reachable m"
-proof-
-  from assms have 1: "succ m s \<subseteq> succ m (reachable m)" by (simp only:succ_def, blast)
-  have "succ m (reachable m) \<subseteq> reachable m"  by (simp only:succ_def reachable_def lfp_def, blast)
-  with 1 show "succ m s \<subseteq> reachable m" by blast
-qed
-
-text {* The following lemma is related to the identification of sufficient conditions to establish safety properties. Consider
-a property that is satisfied by some set of states $S$. If the initial states are in $S$, and if the successors of $S$ are in $S$ then
-all the reachable states are in $S$. *}
-lemma reachable_induct:
-  assumes base: "Init m \<subseteq> S" and step: "succ m S \<subseteq> S"
-  shows "(reachable m) \<subseteq> S"
-proof-
-  from assms have "Init m \<union> succ m S \<subseteq> S" by blast
-  hence "lfp (\<lambda> S . Init m \<union> succ m S) \<subseteq> S" by (rule lfp_lowerbound)
-  thus "(reachable m) \<subseteq> S" unfolding reachable_def .
-qed
-
-text {* The next lemma is similar, but for safety properties expressed as predicates over states instead of sets of states. *}
-
-lemma reachable_induct_pred:
-  assumes base: "\<forall> s \<in> Init m . p s" and step: "\<forall> s . p s \<longrightarrow> (\<forall> s' \<in> succ m {s} . p s')"
-  shows "\<forall> s \<in> reachable m . p s"
-proof -
-  let ?S = "{ x | x . p x }"
-  from base have 1: "Init m \<subseteq> ?S " by auto
-  from step have "\<forall> s \<in> ?S . succ m { s } \<subseteq> ?S" by auto
-  then have "\<forall> x . x \<in> succ m ?S \<longrightarrow> x \<in> ?S"
-    proof(simp only:succ_def, auto)
-    qed
-  then have 2: "succ m ?S \<subseteq> ?S" by auto
-  from 1 and 2 have "reachable m \<subseteq> ?S" by (simp add:reachable_induct)
-  from this show "\<forall>s \<in> reachable m . p s" by auto
-qed
 
 section {* B machine *}
 
 text {* A B machine is a state-transition system together with an invariant. An invariant
 is a predicate on the states of the system. *}
 
-record MACHINE =
-  Lts :: LTS
-  Inv :: "STATE \<Rightarrow> bool"
+record B_machine =
+  lts :: LTS
+  invariant :: "STATE \<Rightarrow> bool"
   
 text {* A B machine is considered correct when all the reachable states satisfy the
         invariant. *}
 
-definition correct_MACHINE :: "MACHINE \<Rightarrow> bool" where
-  "correct_MACHINE m \<equiv> \<forall> s \<in> reachable (Lts m) . (Inv m) s"
+definition sound_B_machine :: "B_machine \<Rightarrow> bool" where
+  "sound_B_machine m \<equiv> \<forall> s \<in> states (lts m) . (invariant m) s"
 
 text {* The following theorem states two sufficient conditions to establish that a machine is
 correct. *}
 
 theorem machine_po:
-  assumes poinit: "\<forall> s \<in> Init (Lts m) . (Inv m) s" 
-      and postep: "\<forall> s . (Inv m) s \<longrightarrow> (\<forall> s' \<in> succ (Lts m) {s} . (Inv m) s')"
-  shows "correct_MACHINE m"
+  assumes po_init: "\<forall> s \<in> init (lts m) . (invariant m) s" and 
+          po_step: "\<forall> t \<in> trans (lts m) . (invariant m)(src t) \<longrightarrow> (invariant m)(dst t)"
+  shows "sound_B_machine m"
 proof-
-  from assms have "\<forall>s\<in>reachable (Lts m). (Inv m) s"
-    proof(rule reachable_induct_pred[of "Lts m" "Inv m"])
+  from assms have "\<forall> s \<in> states (lts m). (invariant m) s"
+    proof(rule reachable_induct_predicate[of "(lts m)" "(invariant m)"])
     qed
-  then show ?thesis by (simp only:correct_MACHINE_def)
+  then show ?thesis by (simp only:sound_B_machine_def)
 qed
-
-
-
-section {* Behaviour: a set of traces *}
-
-text {* Two notions of behaviours for a machine are defined: internal behaviour and observable 
-behaviour. Internal behaviour is a set of paths, where each path is a pair that is composed of an
-initial state, and a possibly infinite list of consecutive transitions. The type $PATH$ corresponds
-to paths: *}
-
-type_synonym PATH = "STATE \<times> TRANSITION list"
-
-text {* Then, the function $paths$ yields the internal behaviour of a machine: *}
-
-definition paths :: "LTS \<Rightarrow> PATH set" where
-"paths m \<equiv> lfp (\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
-                        { (s, trl @ [t]) | s trl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
-                          (\<exists> tr \<in> S . trl = snd tr) \<and>
-                          (trl = [] \<and> Src t = s \<or> trl \<noteq> [] \<and> Src t = Dst (last trl)) })"
-
-lemma mono_paths: "mono((\<lambda> S . { (s, []) | s . s \<in> Init m } \<union> 
-                               { (s, tl @ [t]) | s tl t . s \<in> Init m \<and> t \<in> Trans m \<and> 
-                                    (\<exists> y \<in> S . y = snd tr) \<and>
-                                    (tl = [] \<and> Src t = s \<or> tl \<noteq> [] \<and> Src t = Dst (last tl)) }))"
-proof(rule monoI, blast)
-qed
-
-text {* External behaviour of a machine is the set of possible sequences of events. Each such
-sequence corresponds to the events occurring along a path, as is defined for function $path\_events$: *}
-
-definition path_events :: "PATH \<Rightarrow> EVENT list" where
-"path_events p = map Evt (snd p)"
-
-text {* External behaviour is given by the function $traces$: *}
-
-definition traces :: "LTS \<Rightarrow> EVENT list set" where
-"traces m \<equiv> { path_events p | p . p \<in> paths m } "
 
 section {* B refinement: two components glued by a relation between states *}
 
 record REFINEMENT =
-  Abstract :: MACHINE
-  Concrete :: LTS
-  Glue :: "STATE rel" (* relates Abstract to Concrete - see wd_REFINEMENT_glue *)
+  abstract :: LTS
+  concrete :: LTS
+  invariant :: "STATE \<times> STATE \<Rightarrow> bool" (* relates Abstract to Concrete - see wd_REFINEMENT_glue *)
   
-definition wd_REFINEMENT_machines :: "REFINEMENT \<Rightarrow> bool" where
-  "wd_REFINEMENT_machines r \<equiv> 
-    wd_LTS(Lts (Abstract r)) \<and> wd_LTS(Concrete r)"
-
-definition wd_REFINEMENT_glue :: "REFINEMENT \<Rightarrow> bool" where
-  "wd_REFINEMENT_glue r \<equiv> Glue r \<subseteq> State(Concrete r) \<times> State(Lts (Abstract r))"
-
-definition sound_REFINEMENT_init :: "REFINEMENT \<Rightarrow> bool" where
-  "sound_REFINEMENT_init r \<equiv> \<forall> s \<in> Init (Concrete r) . \<exists> sa \<in> Init(Lts (Abstract r)) . (s, sa) \<in> Glue r"
-
-definition sound_REFINEMENT_trans :: "REFINEMENT \<Rightarrow> bool" where
-"sound_REFINEMENT_trans r \<equiv> \<forall> tc \<in> Trans (Concrete r) . \<exists> ta \<in> Trans (Lts (Abstract r)) .
-(Src tc, Src ta) \<in> Glue r \<and> (Dst tc, Dst ta) \<in> Glue r \<and> Evt tc = Evt ta" 
-
 definition sound_REFINEMENT :: "REFINEMENT \<Rightarrow> bool" where
-"sound_REFINEMENT r \<equiv> sound_REFINEMENT_init r \<and> sound_REFINEMENT_trans r"
+"sound_REFINEMENT r \<equiv> lts_simulation {(s, s') | s s' . (invariant r) (s, s') } (concrete r) (abstract r)"
 
 text {* A special refinement is one that does not change anything, namely the
 identity refinement. It is defined as a function that takes a machine and
 returns the identity refinement. *}
 
-definition refinement_id :: "MACHINE \<Rightarrow> REFINEMENT" where
-"refinement_id m \<equiv> \<lparr> Abstract = m, Concrete = (Lts m), Glue = Id \<rparr>"
+definition refinement_id :: "LTS \<Rightarrow> REFINEMENT" where
+"refinement_id m \<equiv> \<lparr> abstract = m, concrete = m, invariant = (\<lambda> p . fst p = snd p) \<rparr>"
 
 text {* We have that the identity refinement is sound. *}
 
 lemma "sound_REFINEMENT(refinement_id m)"
-proof(simp add:sound_REFINEMENT_def  
-      sound_REFINEMENT_trans_def sound_REFINEMENT_init_def refinement_id_def, auto)
-qed
+sorry
 
 text {* Next, we definement composition of refinements. This is only defined if the
 composed refinements have matching set of states, otherwise it is left
@@ -215,8 +61,8 @@ undefined. *}
 
 definition refinement_compose :: "REFINEMENT \<Rightarrow> REFINEMENT \<Rightarrow> REFINEMENT option" where
 "refinement_compose r1 r2 \<equiv> 
-  (if Concrete r1 = Lts (Abstract r2) then
-    Some \<lparr> Abstract = Abstract r1, Concrete = Concrete r2, Glue = (Glue r2) O (Glue r1)\<rparr>
+  (if concrete r1 = abstract r2 then
+  Some \<lparr> abstract = abstract r1, concrete = concrete r2, invariant = \<lambda> p . \<exists> s . (invariant r1)(fst p, s) \<and> (invariant r2)(s, snd p)\<rparr>
   else None)"
 
 lemma refinement_compose_soundness:
@@ -224,19 +70,23 @@ lemma refinement_compose_soundness:
     "sound_REFINEMENT r1" and "sound_REFINEMENT r2" and
     "refinement_compose r1 r2 = Some r"
   shows "sound_REFINEMENT r"
-proof(cases "Concrete r1 = Lts(Abstract r2)")
+proof(cases "concrete r1 = abstract r2")
   case False
     hence "refinement_compose r1 r2 = None" by (simp add:refinement_compose_def)
     with assms(3)
     have "Some r = None" by simp
     thus ?thesis by simp
 next
-  def rv \<equiv> "\<lparr> Abstract = Abstract r1, Concrete = Concrete r2, Glue = Glue r2 O Glue r1 \<rparr>"
   case True
-    then have guard : "Concrete r1 = Lts (Abstract r2)" .
+  assume "concrete r1 = abstract r2"
+  show "sound_REFINEMENT r" unfolding sound_REFINEMENT_def lts_simulation_def lts_simulation_init_def lts_simulation_transition_def
+  sorry
+qed
+(*
+  let ?inv = "\<lambda> p . \<exists> s . (invariant r1)(fst p, s) \<and> (invariant r2)(s, snd p)"
+  def rv \<equiv> "\<lparr> abstract = abstract r1, concrete = concrete r2, invariant = ?inv \<rparr>"
     hence "refinement_compose r1 r2 = Some rv"
       sorry
-      by (simp add:refinement_compose_def rv_def)
     with assms(3)
       have r: "r = rv" by simp
     from assms(2)
@@ -244,18 +94,21 @@ next
     from assms(1)
       have i1: "sound_REFINEMENT_init r1" by (simp add: sound_REFINEMENT_def)    
     from i2 and i1
-      have i: "sound_REFINEMENT_init rv"
-    proof(simp add:sound_REFINEMENT_init_def rv_def)
-      have "\<forall>s\<in>Init (Concrete r2). \<exists>sa\<in>Init (Abstract r2). (s, sa) \<in> Glue r2 \<Longrightarrow>
-            \<forall>s\<in>Init (Abstract r2). \<exists>sa\<in>Init (Abstract r1). (s, sa) \<in> Glue r1 \<Longrightarrow> 
-            \<forall>s\<in>Init (Concrete r2). \<exists>sa\<in>Init (Abstract r1). (s, sa) \<in> Glue r2 O Glue r1"
+      have i: "sound_REFINEMENT_init rv" unfolding sound_REFINEMENT_init_def rv_def
+    proof -
+      have "\<forall>s\<in>init (concrete r2). \<exists>sa\<in>init (abstract r2). (invariant r2) (s, sa) \<Longrightarrow>
+            \<forall>s\<in>init (abstract r2). \<exists>sa\<in>init (abstract r1). (invariant r1) (s, sa) \<Longrightarrow> 
+            \<forall>s\<in>init (concrete r2). \<exists>sa\<in>init (abstract r1). ?inv(s, sa)"
+            sorry
 (*        by (simp add: relcomp_totality) *)
       moreover
-        with guard have "Init(Concrete r1) = Init(Lts(Abstract r2))" by simp
+        have "init(concrete r1) = init(abstract r2)"
+          sorry
       ultimately
-      show "\<forall>s\<in>Init (Concrete r2). \<exists>sa\<in>Init(Lts (Abstract r2)). (s, sa) \<in> Glue r2 \<Longrightarrow>
-            \<forall>s\<in>Init (Concrete r1). \<exists>sa\<in>Init(Lts (Abstract r1)). (s, sa) \<in> Glue r1 \<Longrightarrow> 
-            \<forall>s\<in>Init (Concrete r2). \<exists>sa\<in>Init(Lts (Abstract r1)). (s, sa) \<in> Glue r2 O Glue r1" by simp
+      show "\<forall>s\<in>init (concrete r2). \<exists>sa\<in>init(abstract r2). (invariant r2)(s, sa) \<Longrightarrow>
+            \<forall>s\<in>init (concrete r1). \<exists>sa\<in>init(abstract r1). (invariant r1)(s, sa) \<Longrightarrow> 
+            \<forall>s\<in>init (concrete r2). \<exists>sa\<in>init(abstract r1). ?inv(s, sa)"
+      sorry
     qed
   moreover  
     from assms(1)
@@ -284,13 +137,13 @@ next
       by (simp add:sound_REFINEMENT_def)
     with r show "sound_REFINEMENT r" by simp
 qed
-
+ *)
 text {* We now want to verify that our definition of refinement composition satisfies
 some simple properties. First any identity refinement is left-neutral: *}
 
 lemma refinement_compose_neutral_left:
   assumes "sound_REFINEMENT r"
-  shows "Abstract r = m \<Longrightarrow> refinement_compose (refinement_id m) r = Some r"
+  shows "abstract r = m \<Longrightarrow> refinement_compose (refinement_id m) r = Some r"
 proof(simp add:sound_REFINEMENT_def refinement_compose_def refinement_id_def)
 qed
 
@@ -298,7 +151,7 @@ text {* Second, any identity refinement is right-neutral for refinement composit
 
 lemma refinement_compose_neutral_right:
   assumes "sound_REFINEMENT r"
-  shows "Concrete r = m \<Longrightarrow> refinement_compose r (refinement_id m) = Some r"
+  shows "concrete r = m \<Longrightarrow> refinement_compose r (refinement_id m) = Some r"
 proof(simp add:sound_REFINEMENT_def refinement_compose_def refinement_id_def)
 qed
 
@@ -307,34 +160,40 @@ property is not as straightforward as we could expect due to the partialness
 of composition. *}
 lemma refinement_compose_associative:
   assumes "sound_REFINEMENT r1 \<and> sound_REFINEMENT r2 \<and> sound_REFINEMENT r3"
-      and "Concrete r1 = Abstract r2" 
-      and "Concrete r2 = Abstract r3"
+      and "concrete r1 = abstract r2" 
+      and "concrete r2 = abstract r3"
   shows "\<exists> r12 r23 . Some r12 = refinement_compose r1 r2 \<and> 
          Some r23 = refinement_compose r2 r3 \<and>
          refinement_compose r12 r3 = refinement_compose r1 r23"
 proof(simp add:sound_REFINEMENT_def refinement_compose_def, auto)
-  from assms(2) show "Concrete r1 = Abstract r2" by simp
+  from assms(2) show "concrete r1 = abstract r2" by simp
 next
-  from assms(3) show "Concrete r2 = Abstract r3" by simp
+  from assms(3) show "concrete r2 = abstract r3" by simp
 qed
 
+(*
 lemma refinement_paths:
 assumes "sound_REFINEMENT r"
-shows "\<forall> pc \<in> paths(Concrete r) . \<exists> pa \<in> paths(Abstract r) .
-  (fst pc, fst pa) \<in> (Glue r)"
+shows "\<forall> pc \<in> lts_traces(concrete r) . \<exists> pa \<in> lts_traces(abstract r) . (invariant r) (fst pc, fst pa)"
 sorry
+*)
 
+lemma assumes "sound_REFINEMENT r" shows "lts_traces (concrete r) \<subseteq> lts_traces (abstract r)"
+  sorry
 
-lemma
-  assumes
-    "sound_REFINEMENT r"
-  shows
-    "traces (Concrete r) \<subseteq> traces (Abstract r)"
-  proof(simp only:traces_def)
-    have "p \<in> {path_events p |p. p \<in> paths (Concrete r)} \<Longrightarrow> p \<in> {path_events p |p. p \<in> paths (Abstract r)}"
-    sorry
-    then show "{path_events p |p. p \<in> paths (Concrete r)} \<subseteq> {path_events p |p. p \<in> paths (Abstract r)}"
-      sorry
-  qed
+type_synonym DESIGN = "REFINEMENT list"
 
+inductive sound_DESIGN :: "DESIGN \<Rightarrow> bool" where
+  base: "sound_DESIGN []" |
+  step: "\<lbrakk> sound_REFINEMENT x; xs \<noteq> [] \<longrightarrow> concrete x = abstract (hd xs) \<and> sound_DESIGN xs \<rbrakk> \<Longrightarrow> sound_DESIGN (x # xs)"
+   
+record DEVELOPMENT =
+  spec :: B_machine
+  design :: DESIGN
+
+definition sound_DEVELOPMENT :: "DEVELOPMENT \<Rightarrow> bool" where
+  "sound_DEVELOPMENT dev \<equiv> 
+    sound_B_machine (spec dev) \<and> sound_DESIGN (design dev) \<and>
+    (design dev \<noteq> [] \<longrightarrow> (B_machine.lts (spec dev)) = (abstract (hd (design dev))))"
+    
 end
