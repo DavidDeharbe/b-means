@@ -64,5 +64,9 @@ lemma "\<forall> s \<in> S . r `` { s } \<subseteq> R \<Longrightarrow> r `` S \
 proof(auto)
 qed
 
+lemma relcomp_witness : "\<forall> (x, y) \<in> r O s . \<exists> z . (x, z) \<in> r \<and> (z, y) \<in> s" unfolding relcomp_def by auto
+
+lemma "S = Collect (\<lambda> x . x \<in> S)" by simp
+
 end
 
