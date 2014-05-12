@@ -118,20 +118,53 @@ text {* We now want to verify that our definition of refinement composition sati
 some simple properties. First any identity refinement is left-neutral: *}
 
 lemma refinement_compose_neutral_left:
-assumes
-  "sound_B_refinement r"
-shows
-  "abstract r = m \<Longrightarrow> refinement_compose (refinement_id m) r = Some r"
-unfolding sound_B_refinement_def refinement_id_def 
-sorry
+  "refinement_compose (refinement_id (abstract r)) r = Some r"
+  unfolding refinement_compose_def
+proof-
+  have "concrete (refinement_id (abstract r)) = abstract r"
+    unfolding refinement_id_def by simp
+moreover
+  let ?invariant = "\<lambda>p. p \<in> Collect (invariant r) O Collect (invariant (refinement_id (abstract r)))"
+  let ?r = "\<lparr>abstract = abstract (refinement_id (abstract r)), concrete = concrete r, invariant = ?invariant\<rparr>"
+  have "Some ?r = Some r"
+    proof -
+      have "abstract (refinement_id (abstract r)) = abstract r" unfolding refinement_id_def by simp
+    moreover
+      have "?invariant = (\<lambda>p. p \<in> Collect (invariant r))"
+        unfolding refinement_id_def relcomp_def by auto
+    ultimately show ?thesis by simp
+    qed
+ultimately
+  show "(if concrete (refinement_id (abstract r)) = abstract r then Some ?r else None) = Some r" 
+    by simp
+qed
 
 text {* Second, any identity refinement is right-neutral for refinement composition. *}
 
 lemma refinement_compose_neutral_right:
-  assumes "sound_B_refinement r"
-  shows "concrete r = m \<Longrightarrow> refinement_compose r (refinement_id m) = Some r"
-sorry
-
+  "refinement_compose r (refinement_id (concrete r)) = Some r"
+  unfolding refinement_compose_def
+proof -
+  have "concrete r = abstract (refinement_id (concrete r))"
+    unfolding refinement_id_def by simp
+moreover
+  let ?invariant = "\<lambda>p. p \<in> Collect (invariant (refinement_id (concrete r))) O Collect (invariant r)"
+  let ?r = "\<lparr>abstract = abstract r, concrete = concrete (refinement_id (concrete r)), invariant = ?invariant\<rparr>"
+  have "?r = r"
+  proof-
+    have "concrete(refinement_id(concrete r)) = concrete r" 
+      unfolding refinement_id_def by simp
+  moreover
+    have "?invariant = (\<lambda>p. p \<in> Collect (invariant r))"
+      unfolding refinement_id_def relcomp_def by auto
+  ultimately
+    show ?thesis by simp
+  qed
+ultimately
+  show "(if concrete r = abstract (refinement_id (concrete r)) then Some ?r else None) = Some r"
+    by simp
+qed
+  
 text {* Last, refinement composition is associative. The expression of this
 property is not as straightforward as we could expect due to the partialness
 of composition. *}
