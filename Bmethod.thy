@@ -96,9 +96,7 @@ next
     def rs2 \<equiv> "Collect (invariant r2)"
     let ?rs = "rs2 O rs1"
     def rv \<equiv> "\<lparr> abstract = abstract r1, concrete = concrete r2, invariant = \<lambda> p . (p \<in> ?rs) \<rparr>"
-    with glue have "refinement_compose r1 r2 = Some rv" unfolding refinement_compose_def rs2_def rs1_def rv_def 
-      by simp
-    with assms(3) have value_r: "r = rv" unfolding rv_def
+    with glue and assms(3) have value_r: "r = rv" unfolding refinement_compose_def rs2_def rs1_def rv_def 
       by simp
     with sound_r2 have rs2: "lts_simulation rs2 (concrete r2) (abstract r2)"
       unfolding lts_simulation_def sound_B_refinement_def rs2_def by auto
