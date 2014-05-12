@@ -100,15 +100,12 @@ next
       by simp
     with sound_r2 have rs2: "lts_simulation rs2 (concrete r2) (abstract r2)"
       unfolding lts_simulation_def sound_B_refinement_def rs2_def by auto
-    with sound_r1 have rs1: "lts_simulation rs1 (concrete r1) (abstract r1)"
+    with sound_r1 and glue have rs1: "lts_simulation rs1 (abstract r2) (abstract r1)"
       unfolding lts_simulation_def sound_B_refinement_def rs1_def by auto
-    with glue have rs1: "lts_simulation rs1 (abstract r2) (abstract r1)" by simp
     with rs2 have "lts_simulation (rs2 O rs1) (concrete r2) (abstract r1)" 
       by (rule Simulation.lts_simulation_transitivity[of "rs2" "concrete r2" "abstract r2" "rs1" "abstract r1"])
-    with value_r have 1: "lts_simulation (rs2 O rs1) (concrete r) (abstract r)" unfolding rv_def rs1_def rs2_def 
-      by simp
-    with value_r have "Collect (invariant r) = rs2 O rs1" unfolding rv_def by simp
-    with 1 show "lts_simulation (Collect (invariant r)) (concrete r) (abstract r)" by simp
+    with value_r show "lts_simulation (Collect (invariant r)) (concrete r) (abstract r)"
+      unfolding rv_def rs1_def rs2_def by simp
   qed
 qed
 
