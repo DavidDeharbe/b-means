@@ -127,27 +127,15 @@ for
   r2 :: "('mstate \<times> 'cstate) set"
 
 sublocale SimulateTransitive \<subseteq> 
+          SimulationComposition
+                   asrc adst aevt ainit atrans msrc mdst mevt minit mtrans r1
+                   csrc cdst cevt cinit ctrans r2
+by unfold_locales
+
+sublocale SimulateTransitive \<subseteq> 
           Simulate asrc adst aevt ainit atrans
                    csrc cdst cevt cinit ctrans
                    "r1 O r2"
-unfolding SimulateTransitive_def Simulate_def
-sorry
+by unfold_locales
 
-(*
-lemma lts_simulates_transitivity:
-assumes
-  s12: "l1 \<sim> l2" and s23: "l2 \<sim> l3"
-shows
-  "l1 \<sim> l3"
-proof -
-  from s23 obtain s where "lts_simulation s l3 l2" unfolding lts_simulates_def ..
-moreover
-  from s12 obtain r where "lts_simulation r l2 l1" unfolding lts_simulates_def ..
-ultimately
-  have "lts_simulation (s O r) l3 l1" 
-    by (rule lts_simulation_transitivity[of "s" "l3" "l2" "r" "l1"])
-  then have "\<exists> r . lts_simulation r l3 l1" ..
-  then show ?thesis unfolding lts_simulates_def by simp
-qed
-*)
 end
