@@ -13,24 +13,20 @@ and such changes called transitions. Also when a system makes a transition, this
 and this observation is called an event. State, transition and event are three different
 entities and a type is declared for each: *}
 
-typedecl STATE
-typedecl TRANSITION
-typedecl EVENT
-
-text {* These different entities are related through the following functions: *}
-consts src :: "TRANSITION \<Rightarrow> STATE"
-consts dst :: "TRANSITION \<Rightarrow> STATE"
-consts evt :: "TRANSITION \<Rightarrow> EVENT"
-
-record LTS =
-  init :: "STATE set" (* a set of initial states *)
-  trans :: "TRANSITION set" (* a set of transitions *)
+record ('st, 'ev) Transition =
+  src :: 'st
+  dst :: 'st
+  lbl :: 'ev
   
-inductive_set states :: "LTS \<Rightarrow> STATE set" for m :: LTS where
+record ('st, 'ev) LTS =
+  init :: "'st set" (* a set of initial states *)
+  trans :: "('st, 'ev) Transition set" (* a set of transitions *)
+  
+inductive_set states :: "('st, 'ev) LTS \<Rightarrow> 'st set" for m :: "('st, 'ev) LTS" where
   base[elim!]: "s \<in> init m \<Longrightarrow> s \<in> states m"
 | step[elim!]: "\<lbrakk> t \<in> trans m; src t \<in> states m \<rbrakk> \<Longrightarrow> dst t \<in> states m"
   
-definition successors :: "LTS \<Rightarrow> STATE set \<Rightarrow> STATE set" where
+definition successors :: "('st, 'ev) LTS \<Rightarrow> 'st set \<Rightarrow> 'st set" where
 "successors lts S \<equiv> { s | s . \<exists> t \<in> trans lts. src t \<in> S \<and> dst t = s}"
   
 text {* A few lemmas related to reachable states are then enunciated and proved. 
@@ -85,4 +81,21 @@ proof
   qed
 qed
 
+subsection {* Behavior *}
+
+text {* Internal behavior. *}
+
+inductive_set runs :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Transition list set"  
+          for m :: "('st, 'ev) LTS" where
+  base: "[] : runs m"
+| one[elim!]: "\<lbrakk> t \<in> trans m; src t \<in> init m \<rbrakk> \<Longrightarrow> [t] \<in> runs m"
+| step[elim!]: "\<lbrakk> t \<in> trans m; r \<in> runs m; r \<noteq> []; src t = dst (last r) \<rbrakk> \<Longrightarrow> r @ [t] \<in> runs m"
+
+text {* External behavior. *}
+
+definition traces :: "('st, 'ev) LTS \<Rightarrow> 'ev list set" where
+  "traces m \<equiv> { map lbl r | r . r \<in> runs m }"
+
 end
+
+

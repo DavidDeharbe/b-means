@@ -9,14 +9,14 @@ section {* B machine *}
 text {* A B machine is a state-transition system together with an invariant. An invariant
 is a predicate on the states of the system. *}
 
-record B_machine =
-  lts :: LTS
-  invariant :: "STATE \<Rightarrow> bool"
+record ('st, 'ev) B_machine =
+  lts :: "('st, 'ev) LTS"
+  invariant :: "'st \<Rightarrow> bool"
   
 text {* A B machine is considered correct when all the reachable states satisfy the
         invariant. *}
 
-definition sound_B_machine :: "B_machine \<Rightarrow> bool" where
+definition sound_B_machine :: "('st, 'ev) B_machine \<Rightarrow> bool" where
   "sound_B_machine m \<equiv> \<forall> s \<in> states (lts m) . (invariant m) s"
 
 text {* The following theorem states two sufficient conditions to establish that a machine is
@@ -35,35 +35,35 @@ qed
 
 section {* B refinement: two components glued by a relation between states *}
 
-record B_refinement =
-  abstract :: LTS
-  concrete :: LTS
-  invariant :: "STATE \<times> STATE \<Rightarrow> bool" (* relates Abstract to Concrete - see wd_B_refinement_glue *)
+record ('st, 'ev) B_refinement =
+  abstract :: "('st, 'ev) LTS"
+  concrete :: "('st, 'ev) LTS"
+  invariant :: "'st \<times> 'st \<Rightarrow> bool" (* relates Abstract to Concrete - see wd_B_refinement_glue *)
   
-definition sound_B_refinement :: "B_refinement \<Rightarrow> bool" where
-"sound_B_refinement r \<equiv> lts_simulation (Collect (invariant r)) (concrete r) (abstract r)"
+definition sound_B_refinement :: "('st, 'ev) B_refinement \<Rightarrow> bool" where
+"sound_B_refinement r \<equiv> simulation (Collect (invariant r)) (concrete r) (abstract r)"
 
-lemma "sound_B_refinement r \<Longrightarrow> lts_simulates (abstract r) (concrete r)"
-unfolding sound_B_refinement_def lts_simulates_def by auto
+lemma "sound_B_refinement r \<Longrightarrow> simulates (abstract r) (concrete r)"
+unfolding sound_B_refinement_def simulates_def by auto
 
 text {* A special refinement is one that does not change anything, namely the
 identity refinement. It is defined as a function that takes a machine and
 returns the identity refinement. *}
 
-definition refinement_id :: "LTS \<Rightarrow> B_refinement" where
+definition refinement_id :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) B_refinement" where
 "refinement_id m \<equiv> \<lparr> abstract = m, concrete = m, invariant = (\<lambda> p . fst p = snd p) \<rparr>"
 
 text {* We have that the identity refinement is sound. *}
 
 lemma "sound_B_refinement(refinement_id m)"
-unfolding sound_B_refinement_def refinement_id_def lts_simulation_def lts_simulation_init_def lts_simulation_transition_def 
+unfolding sound_B_refinement_def refinement_id_def simulation_def simulation_init_def simulation_step_def 
 by auto
 
 text {* Next, we definement composition of refinements. This is only defined if the
 composed refinements have matching set of states, otherwise it is left
 undefined. *}
 
-definition refinement_compose :: "B_refinement \<Rightarrow> B_refinement \<Rightarrow> B_refinement option" where
+definition refinement_compose :: "('st, 'ev) B_refinement \<Rightarrow> ('st, 'ev) B_refinement \<Rightarrow> ('st, 'ev) B_refinement option" where
 "refinement_compose r1 r2 \<equiv> 
   (if concrete r1 = abstract r2 then
   Some \<lparr> abstract = abstract r1, concrete = concrete r2, 
@@ -98,13 +98,13 @@ next
     def rv \<equiv> "\<lparr> abstract = abstract r1, concrete = concrete r2, invariant = \<lambda> p . (p \<in> ?rs) \<rparr>"
     with glue and assms(3) have value_r: "r = rv" unfolding refinement_compose_def rs2_def rs1_def rv_def 
       by simp
-    with sound_r2 have rs2: "lts_simulation rs2 (concrete r2) (abstract r2)"
-      unfolding lts_simulation_def sound_B_refinement_def rs2_def by auto
-    with sound_r1 and glue have rs1: "lts_simulation rs1 (abstract r2) (abstract r1)"
-      unfolding lts_simulation_def sound_B_refinement_def rs1_def by auto
-    with rs2 have "lts_simulation (rs2 O rs1) (concrete r2) (abstract r1)" 
-      by (rule Simulation.lts_simulation_transitivity[of "rs2" "concrete r2" "abstract r2" "rs1" "abstract r1"])
-    with value_r show "lts_simulation (Collect (invariant r)) (concrete r) (abstract r)"
+    with sound_r2 have rs2: "simulation rs2 (concrete r2) (abstract r2)"
+      unfolding simulation_def sound_B_refinement_def rs2_def by auto
+    with sound_r1 and glue have rs1: "simulation rs1 (abstract r2) (abstract r1)"
+      unfolding simulation_def sound_B_refinement_def rs1_def by auto
+    with rs2 have "simulation (rs2 O rs1) (concrete r2) (abstract r1)" 
+      by (rule Simulation.simulation_transitivity[of "rs2" "concrete r2" "abstract r2" "rs1" "abstract r1"])
+    with value_r show "simulation (Collect (invariant r)) (concrete r) (abstract r)"
       unfolding rv_def rs1_def rs2_def by simp
   qed
 qed
@@ -176,40 +176,30 @@ next
   from assms(3) show "concrete r2 = abstract r3" by simp
 qed
 
-(*
-lemma refinement_paths:
-assumes "sound_B_refinement r"
-shows "\<forall> pc \<in> lts_traces(concrete r) . \<exists> pa \<in> lts_traces(abstract r) . (invariant r) (fst pc, fst pa)"
-sorry
-*)
-(*
-lemma assumes "sound_B_refinement r" shows "lts_traces (concrete r) \<subseteq> lts_traces (abstract r)"
-  sorry
-*)
 section {* B development *}
 
-type_synonym B_design = "B_refinement list"
+type_synonym ('st, 'ev) B_design = "('st, 'ev) B_refinement list"
 
-inductive sound_B_design :: "B_design \<Rightarrow> bool" where
+inductive sound_B_design :: "('st, 'ev) B_design \<Rightarrow> bool" where
   base: "sound_B_design []" |
   step: "\<lbrakk> sound_B_refinement x; xs \<noteq> [] \<longrightarrow> concrete x = abstract (hd xs) \<and> sound_B_design xs \<rbrakk> \<Longrightarrow> sound_B_design (x # xs)"
    
 lemma 
-"sound_B_design dev \<Longrightarrow> dev \<noteq> [] \<Longrightarrow> lts_simulates (abstract(hd dev)) (concrete (last dev))"
-unfolding "sound_B_design_def" "sound_B_refinement_def"
-  sorry
+"sound_B_design dev \<Longrightarrow> dev \<noteq> [] \<Longrightarrow> simulates (abstract(hd dev)) (concrete (last dev))"
+unfolding sound_B_design_def sound_B_refinement_def
+sorry
 
-record B_development =
-  spec :: B_machine
-  design :: B_design
+record ('st, 'ev) B_development =
+  spec :: "('st, 'ev) B_machine"
+  design :: "('st, 'ev) B_design"
 
-definition sound_B_development :: "B_development \<Rightarrow> bool" where
+definition sound_B_development :: "('st, 'ev) B_development \<Rightarrow> bool" where
   "sound_B_development dev \<equiv> 
     sound_B_machine (spec dev) \<and> sound_B_design (design dev) \<and>
     (design dev \<noteq> [] \<longrightarrow> (B_machine.lts (spec dev)) = (abstract (hd (design dev))))"
 
-definition B_implementation :: "B_development \<Rightarrow> LTS" where
-  "B_implementation dev = 
+definition B_implementation :: "('st, 'ev) B_development \<Rightarrow> ('st, 'ev) LTS" where
+  "B_implementation dev \<equiv> 
     (if design dev = [] then B_machine.lts (spec dev) else concrete (last (design dev)))"
 
 end
