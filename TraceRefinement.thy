@@ -15,11 +15,10 @@ lemma refines_refl: "l \<sqsupseteq> l" unfolding refines_def by auto
 lemma lts_refines_trans: "l1 \<sqsupseteq> l2 \<and> l2 \<sqsupseteq> l3 \<Longrightarrow>  l1 \<sqsupseteq> l3" 
   unfolding refines_def by auto
 
-(* TODO relate simulation and trace containment *)
-lemma "(l1 :: ('st, 'ev) LTS) \<sim> l2 \<Longrightarrow> \<forall> r2 \<in> runs l2 . \<exists> r . \<exists> r1 \<in> runs l1 . simulate_run r r2 r1"
-sorry
+lemma "l1 \<sim> l2 \<Longrightarrow> \<forall> r2 \<in> runs l2 . \<exists> s . \<exists> r1 \<in> runs l1 . sim_run s r2 r1"
+  unfolding simulates_def by (metis sim_run)
 
-theorem "l1 \<sim> l2 \<Longrightarrow> l1 \<sqsubseteq> l1"
-sorry
+theorem "\<lbrakk> l1 \<sim> l2 \<rbrakk> \<Longrightarrow> l1 \<sqsubseteq> l2" 
+  unfolding simulates_def refines_def by (metis sim_trace_inclusion)
 
 end

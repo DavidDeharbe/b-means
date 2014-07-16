@@ -45,7 +45,7 @@ definition simulation :: "'st rel \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> ('s
 
 text {* Based on the notion of simulation, we introduce the relation simulates on LTS: *}
 definition simulates :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> bool" (infixl "\<sim>" 50) where
-  "(l1 \<sim> l2) \<equiv> \<exists> r . simulation r l2 l1"
+  "(l1 \<sim> l2) \<equiv> \<exists> s . simulation s l2 l1"
 
 subsection {* Properties *}
 
