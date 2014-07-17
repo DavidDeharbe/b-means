@@ -132,7 +132,7 @@ lemma sim_run_all_trans:
 proof(induct rule: sim_run.induct, auto)
 qed
 
-text {* The next lemma states that if \isasym{s} is a simulation between two non-empty runs,
+text {* The next lemma states that if @{text "s"} is a simulation between two non-empty runs,
  then it is a simulation between the last states of these runs. *}
  
 lemma sim_run_last_trans: 
@@ -149,8 +149,8 @@ ultimately
   show "(sim_transition s) (last r) (last r')" by (simp add: List2.last)
 qed
 
-text {* The next lemma states that if \isasym{s} is a simulation between two non-empty runs,
- then the pair formed by the last states of the runs belongs to \isasym{s}. *}
+text {* The next lemma states that if @{text "s"} is a simulation between two non-empty runs,
+ then the pair formed by the last states of the runs belongs to @{text "s"}. *}
  
 lemma sim_run_last_state: 
   "\<lbrakk> sim_run s r r'; r \<noteq> [] \<rbrakk> \<Longrightarrow> (dst(last r), dst(last r')) \<in> s"
@@ -161,7 +161,7 @@ proof-
   then show ?thesis by (simp add:sim_transition_def)
 qed
 
-text {* Next, the following lemma establishes if \isasym{s} establishes a simulation between two 
+text {* Next, the following lemma establishes if @{text "s"} establishes a simulation between two 
 pairs of runs and the last state in the first pair coincides with the first state in the second run,
 then it also is a simulation between the concatenations of the runs. *}
 
