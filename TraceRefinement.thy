@@ -1,6 +1,6 @@
 theory TraceRefinement
 
-imports Main LTS Simulation
+imports Main Simulation
 
 begin
 
@@ -12,13 +12,15 @@ abbreviation is_refined_by :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rig
 
 lemma refines_refl: "l \<sqsupseteq> l" unfolding refines_def by auto
   
-lemma lts_refines_trans: "l1 \<sqsupseteq> l2 \<and> l2 \<sqsupseteq> l3 \<Longrightarrow>  l1 \<sqsupseteq> l3" 
+lemma lts_refines_trans: "\<lbrakk>l \<sqsupseteq> l'; l' \<sqsupseteq> l''\<rbrakk> \<Longrightarrow> l \<sqsupseteq> l''" 
   unfolding refines_def by auto
 
-lemma "l1 \<sim> l2 \<Longrightarrow> \<forall> r2 \<in> runs l2 . \<exists> s . \<exists> r1 \<in> runs l1 . sim_run s r2 r1"
-  unfolding simulates_def by (metis sim_run)
+lemma 
+  assumes "l \<sim> l'" "ts' \<in> runs l'"
+  obtains r ts where "ts \<in> runs l" "sim_run r ts' ts"
+  using assms unfolding simulates_def by (metis sim_run)
 
-theorem "\<lbrakk> l1 \<sim> l2 \<rbrakk> \<Longrightarrow> l1 \<sqsubseteq> l2" 
+theorem "l \<sim> l' \<Longrightarrow> l \<sqsubseteq> l'" 
   unfolding simulates_def refines_def by (metis sim_trace_inclusion)
 
 end

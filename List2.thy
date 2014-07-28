@@ -18,8 +18,7 @@ where
 inductive_cases all_not_empty [elim!]: "all p (v1 # l1) (v2 # l2)"
 
 lemma empty: "\<lbrakk> all p l1 l2 \<rbrakk> \<Longrightarrow> (l1 = [] \<longleftrightarrow> l2 = [])"
-proof(induct rule:all.induct, simp, simp)
-qed
+by (induct rule:all.induct) simp_all
 
 lemma last: 
   "\<lbrakk> all (p :: 'a \<Rightarrow> 'b \<Rightarrow> bool) (l1 :: 'a list) (l2 :: 'b list); l1 \<noteq> []; l2 \<noteq> [] \<rbrakk>
