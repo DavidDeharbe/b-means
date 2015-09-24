@@ -45,7 +45,7 @@ definition simulation :: "'st rel \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> ('s
           (\<exists>t' \<in> trans l'. src t' = s' \<and> sim_transition r t t')))"
 
 text {* 
-  We say that @{text "l'"} simulates @{text l} is there is a simulation between
+  We say that @{text "l'"} simulates @{text l} if is there is a simulation between
   @{text l} and @{text "l'"}.
 *}
 definition simulates :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> bool" (infixl "\<preceq>" 50)

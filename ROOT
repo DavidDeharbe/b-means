@@ -5,8 +5,9 @@
 ***********************************************************)
 
 session "b-means" = "HOL" +
-  options [ (*quick_and_dirty = true,*) document = pdf, document_output = "output", document_variants="document:outline=/proof,/theory" ]
+  options [ quick_and_dirty = true, document = pdf, document_output = "output", document_variants="document:outline=/proof,/theory" ]
 (*  theories [document = false] *)
   theories
-    LTS Simulation TraceRefinement
+    LTS Simulation TraceRefinement Bmethod
   files "document/root.tex"
+  document_files "root.tex"
