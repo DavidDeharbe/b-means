@@ -11,17 +11,14 @@ for
 +
 fixes
   inv :: "'state \<Rightarrow> bool"
+assumes
+  po_init: "\<forall>s \<in> init lts. inv s" and
+  po_step: "\<forall>t \<in> trans lts. inv (src t) \<longrightarrow> inv (dst t)"
 begin
 
-  definition sound :: "bool" where
-    "sound \<equiv> \<forall> s \<in> states . (inv s)"
-  
-  lemma po:
-  assumes po_init: "\<forall> s \<in> init lts. inv s" and
-          po_step: "\<forall> t \<in> trans lts. inv (src t) \<longrightarrow> inv (dst t)"
-  shows sound
-  unfolding sound_def sorry 
+  lemma inv_states: "\<forall>s\<in>states. inv s"
+  using po_init po_step by (rule reachable_induct_predicate)
 
-end
+end (* locale Machine *)
 
 end

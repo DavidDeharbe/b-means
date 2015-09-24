@@ -2,7 +2,7 @@
     Author:     David
 *)
 
-header {* Miscellaneous helpful lemmas *}
+section {* Miscellaneous helpful lemmas *}
 
 theory "Misc"
 imports Main
@@ -53,20 +53,19 @@ proof
 qed
 
 lemma set_union_elem: "S = \<Union> { { s } | s . s \<in> S }"
-proof(blast)
-qed
+  by blast
 
 lemma set_img_union_elem: "r `` S = \<Union> { r `` { s } | s . s \<in> S }"
-proof(blast)
-qed
+  by blast
 
 lemma "\<forall> s \<in> S . r `` { s } \<subseteq> R \<Longrightarrow> r `` S \<subseteq> R" 
-proof(auto)
-qed
+  by auto
 
-lemma relcomp_witness : "\<forall> (x, y) \<in> r O s . \<exists> z . (x, z) \<in> r \<and> (z, y) \<in> s" unfolding relcomp_def by auto
+lemma relcomp_witness : "\<forall> (x, y) \<in> r O s . \<exists> z . (x, z) \<in> r \<and> (z, y) \<in> s"
+  unfolding relcomp_def by auto
 
-lemma "S = Collect (\<lambda> x . x \<in> S)" by simp
+lemma "S = Collect (\<lambda> x . x \<in> S)"
+  by simp
 
 end
 

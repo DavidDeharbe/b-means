@@ -100,6 +100,6 @@ text {* External behavior. *}
   definition traces :: "'ev list set" where
     "traces \<equiv> { map lbl r | r . r \<in> runs }"
 
-end
+end (* locale LTS *)
 
 end

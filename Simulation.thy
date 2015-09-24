@@ -1,6 +1,6 @@
 theory Simulation
 
-imports Main LTS (*List2*)
+imports Main LTS
 
 begin
 section {* Relating LTSes: simulation *}
@@ -48,8 +48,8 @@ text {*
   We say that @{text "l'"} simulates @{text l} is there is a simulation between
   @{text l} and @{text "l'"}.
 *}
-definition simulates :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> bool" (infixl "\<sim>" 50)
-where "(l' \<sim> l) \<equiv> \<exists>r. simulation r l l'"
+definition simulates :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> bool" (infixl "\<preceq>" 50)
+where "(l \<preceq> l') \<equiv> \<exists>r. simulation r l l'"
 
 subsection {* Properties *}
 
@@ -72,12 +72,12 @@ lemma simulation_composition:
 
 text {* Next we carry these properties over to the simulates relation over LTS. *}
 
-lemma simulates_reflexive: "l \<sim> l" 
+lemma simulates_reflexive: "l \<preceq> l" 
   unfolding simulates_def using simulation_identity ..
 
 lemma simulates_transitive:
-  assumes "l \<sim> l'" and "l' \<sim> l''"
-  shows "l \<sim> l''"
+  assumes "l \<preceq> l'" and "l' \<preceq> l''"
+  shows "l \<preceq> l''"
   using assms unfolding simulates_def using simulation_composition by blast
 
 
@@ -111,8 +111,7 @@ theorem sim_run_trace_eq:
   assumes "sim_run r ts ts'"
   shows "trace_of_run ts = trace_of_run ts'"
   using assms
-  unfolding sim_run_def sim_transition_def trace_of_run_def list_all2_conv_all_nth
-  by (metis length_map nth_equalityI nth_map)
+  by (simp add: list_all2_conv_all_nth nth_equalityI sim_run_def sim_transition_def trace_of_run_def)
 
 text {*
   If two runs are similar, they have the same length.
@@ -147,7 +146,7 @@ lemma sim_run_nth:
  
 lemma sim_run_last_trans: 
   "\<lbrakk> sim_run r ts ts'; ts \<noteq> [] \<rbrakk> \<Longrightarrow> sim_transition r (last ts) (last ts')"
-  by (smt sim_run_nth last_conv_nth length_greater_0_conv sim_run_eq_length) 
+  by (simp add: last_conv_nth sim_run_empty_iff sim_run_eq_length sim_run_nth)
 
 lemma sim_run_last_state: 
   "\<lbrakk> sim_run r ts ts'; ts \<noteq> [] \<rbrakk> \<Longrightarrow> (dst (last ts), dst(last ts')) \<in> r"

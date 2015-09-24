@@ -16,11 +16,11 @@ lemma lts_refines_trans: "\<lbrakk>l \<sqsupseteq> l'; l' \<sqsupseteq> l''\<rbr
   unfolding refines_def by auto
 
 lemma 
-  assumes "l \<sim> l'" "ts' \<in> runs l'"
-  obtains r ts where "ts \<in> runs l" "sim_run r ts' ts"
+  assumes "l \<preceq> l'" "ts \<in> runs l"
+  obtains r ts' where "ts' \<in> runs l'" "sim_run r ts ts'"
   using assms unfolding simulates_def by (metis sim_run)
 
-theorem "l \<sim> l' \<Longrightarrow> l \<sqsubseteq> l'" 
+theorem "l' \<preceq> l \<Longrightarrow> l \<sqsubseteq> l'" 
   unfolding simulates_def refines_def by (metis sim_trace_inclusion)
 
 end
