@@ -1,8 +1,7 @@
 theory Simulation
-
-imports Main LTS
-
+imports LTS
 begin
+
 section {* Relating LTSes: simulation *}
 
 subsection {* Basic definitions *}
@@ -20,11 +19,11 @@ text {*
   related, and the labels to coincide.
 *}
 
-(* NB: Instead of making sim_transition a predicate, we could define
-   sim_transition :: "'st rel \<Rightarrow> ('st, 'ev) Tr rel"
-*)
-definition sim_transition :: "'st rel \<Rightarrow> ('st, 'ev) Tr \<Rightarrow> ('st, 'ev) Tr \<Rightarrow> bool" where
-  "sim_transition r \<equiv> \<lambda>t t'. (src t, src t') \<in> r \<and> lbl t = lbl t' \<and> (dst t, dst t') \<in> r"
+(* sm: should this notion be generalized to a relation between two possibly
+   distinct state types? *)
+definition sim_transition :: "'st rel \<Rightarrow> ('st, 'ev) Tr rel" where
+  "sim_transition r \<equiv> { (t,t') | t t'. (src t, src t') \<in> r
+                                     \<and> lbl t = lbl t' \<and> (dst t, dst t') \<in> r }"
 
 text {* 
   A relation @{text r} on states induces a simulation relation over LTSes @{text l}
@@ -37,19 +36,19 @@ text {*
   \end{itemize}
 *}
 
-definition simulation :: "'st rel \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> bool" where
-  "simulation r l l' \<equiv>
+definition simulation :: "'st rel \<Rightarrow> ('st, 'ev) LTS rel" where
+  "simulation r \<equiv> { (l,l') | l l'.
      (\<forall>s \<in> init l. \<exists>s' \<in> init l'. (s, s') \<in> r)
    \<and> (\<forall>s s'. (s, s') \<in> r \<longrightarrow>
         (\<forall>t \<in> trans l. src t = s \<longrightarrow>
-          (\<exists>t' \<in> trans l'. src t' = s' \<and> sim_transition r t t')))"
+          (\<exists>t' \<in> trans l'. src t' = s' \<and> (t,t') \<in> sim_transition r))) }"
 
 text {* 
   We say that @{text "l'"} simulates @{text l} if is there is a simulation between
   @{text l} and @{text "l'"}.
 *}
-definition simulates :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) LTS \<Rightarrow> bool" (infixl "\<preceq>" 50)
-where "(l \<preceq> l') \<equiv> \<exists>r. simulation r l l'"
+definition simulates (infixl "\<preceq>" 50)
+where "(l \<preceq> l') \<equiv> \<exists>r. (l,l') \<in> simulation r"
 
 subsection {* Properties *}
 
@@ -58,22 +57,24 @@ text {*
    identity relation establishes that a LTS simulates itself.
 *}
 
-lemma simulation_identity : "simulation Id l l" 
+lemma simulation_identity : "Id \<subseteq> simulation Id" 
   unfolding simulation_def sim_transition_def by auto
 
 text {*
    Second, we have that the composition of two simulation relations is a simulation relation.
 *}
 lemma simulation_composition:
-  assumes "simulation r l l'" and "simulation r' l' l''"
-  shows "simulation (r O r') l l''"
+  assumes "(l, l') \<in> simulation r" and "(l', l'') \<in> simulation r'"
+  shows "(l, l'') \<in> simulation (r O r')"
   using assms unfolding simulation_def sim_transition_def relcomp_unfold
   by auto (metis+)
 
-text {* Next we carry these properties over to the simulates relation over LTS. *}
+text {* 
+  These properties are lifted to the simulates relation over LTS.
+*}
 
 lemma simulates_reflexive: "l \<preceq> l" 
-  unfolding simulates_def using simulation_identity ..
+  unfolding simulates_def using simulation_identity by blast
 
 lemma simulates_transitive:
   assumes "l \<preceq> l'" and "l' \<preceq> l''"
@@ -88,8 +89,9 @@ text {*
   corresponding transitions must be related according to @{text r}, lifted to
   transitions.
 *}
-definition sim_run :: "'st rel \<Rightarrow> ('st, 'ev) Run \<Rightarrow> ('st, 'ev) Run \<Rightarrow> bool" where
-  "sim_run r ts ts' \<equiv> list_all2 (sim_transition r) ts ts'"
+definition sim_run :: "'st rel \<Rightarrow> ('st, 'ev) Run rel" where
+  "sim_run r \<equiv> {(ts, ts') | ts ts'. 
+                            list_all2 (\<lambda>t t'. (t,t') \<in> sim_transition r) ts ts'}"
 
 (* original definition -- note that the one above is weaker because it does
    not enforce that the arguments are actually runs; however, it seems more
@@ -108,31 +110,31 @@ text {*
 *}
 
 theorem sim_run_trace_eq: 
-  assumes "sim_run r ts ts'"
-  shows "trace_of_run ts = trace_of_run ts'"
+  assumes "(ts, ts') \<in> sim_run r"
+  shows "map lbl ts = map lbl ts'"
   using assms
-  by (simp add: list_all2_conv_all_nth nth_equalityI sim_run_def sim_transition_def trace_of_run_def)
+  by (simp add: list_all2_conv_all_nth nth_equalityI sim_run_def sim_transition_def)
 
 text {*
   If two runs are similar, they have the same length.
   In particular, one is empty iff the other one is.
 *}
-lemma sim_run_eq_length: "sim_run r ts ts' \<Longrightarrow> length ts = length ts'"
+lemma sim_run_eq_length: "(ts, ts') \<in> sim_run r \<Longrightarrow> length ts = length ts'"
   unfolding sim_run_def by (auto dest: list_all2_lengthD)
 
-lemma sim_run_empty_iff: "sim_run r ts ts' \<Longrightarrow> (ts = [] \<longleftrightarrow> ts' = [])"
+lemma sim_run_empty_iff: "(ts, ts') \<in> sim_run r \<Longrightarrow> (ts = [] \<longleftrightarrow> ts' = [])"
   by (auto dest: sim_run_eq_length)
 
 lemma sim_run_empty [simp]:
-  "sim_run r [] ts = (ts = [])" "sim_run r ts [] = (ts = [])"
+  "([], ts) \<in> sim_run r = (ts = [])" "(ts, []) \<in> sim_run r = (ts = [])"
   unfolding sim_run_def by auto
 
 text {*
   Two singleton runs are similar if the transitions are related.
 *}
 lemma sim_run_singleton [simp]:
-  "sim_run r [t] ts = (\<exists>t'. ts = [t'] \<and> sim_transition r t t')"
-  "sim_run r ts [t] = (\<exists>t'. ts = [t'] \<and> sim_transition r t' t)"
+  "([t], ts) \<in> sim_run r = (\<exists>t'. ts = [t'] \<and> (t,t') \<in> sim_transition r)"
+  "(ts, [t]) \<in> sim_run r = (\<exists>t'. ts = [t'] \<and> (t',t) \<in> sim_transition r)"
   unfolding sim_run_def by (auto simp: list_all2_Cons1 list_all2_Cons2)
 
 text {*
@@ -141,32 +143,32 @@ text {*
   as are the last states.
 *}
 lemma sim_run_nth:
-  "sim_run r ts ts' \<Longrightarrow> \<forall>i < length ts. sim_transition r (ts!i) (ts'!i)"
+  "(ts, ts') \<in> sim_run r \<Longrightarrow> \<forall>i < length ts. (ts!i, ts'!i) \<in> sim_transition r"
   by (simp add: sim_run_def list_all2_conv_all_nth)
  
 lemma sim_run_last_trans: 
-  "\<lbrakk> sim_run r ts ts'; ts \<noteq> [] \<rbrakk> \<Longrightarrow> sim_transition r (last ts) (last ts')"
+  "\<lbrakk> (ts, ts') \<in> sim_run r; ts \<noteq> [] \<rbrakk> \<Longrightarrow> (last ts, last ts') \<in> sim_transition r"
   by (simp add: last_conv_nth sim_run_empty_iff sim_run_eq_length sim_run_nth)
 
 lemma sim_run_last_state: 
-  "\<lbrakk> sim_run r ts ts'; ts \<noteq> [] \<rbrakk> \<Longrightarrow> (dst (last ts), dst(last ts')) \<in> r"
+  "\<lbrakk> (ts, ts') \<in> sim_run r; ts \<noteq> [] \<rbrakk> \<Longrightarrow> (dst (last ts), dst(last ts')) \<in> r"
   by (auto dest: sim_run_last_trans simp: sim_transition_def)
 
 text {*
   The concatenation of two similar runs is similar.
 *}
 lemma sim_run_append [simp]:
-  assumes "sim_run r us vs" and "sim_run r xs ys"
-  shows "sim_run r (us @ xs) (vs @ ys)"
-  using assms unfolding sim_run_def by (rule list_all2_appendI)
+  assumes "(us,vs) \<in> sim_run r" and "(xs,ys) \<in> sim_run r"
+  shows "(us @ xs, vs @ ys) \<in> sim_run r"
+  using assms unfolding sim_run_def by (auto intro: list_all2_appendI)
 
 text {*
   As a special case, appending two similar transitions to two similar runs
   yields again two similar runs.
 *}
 lemma sim_run_append_trans:
-  assumes "sim_run r ts ts'" and "sim_transition r t t'"
-  shows "sim_run r (ts @ [t]) (ts' @ [t'])"
+  assumes "(ts, ts') \<in> sim_run r" and "(t, t') \<in> sim_transition r"
+  shows "(ts @ [t], ts' @ [t']) \<in> sim_run r"
   using assms by simp
 
 text {*
@@ -175,54 +177,57 @@ text {*
 *}
 
 theorem sim_run:
-  assumes sim: "simulation r l l'" and ts: "ts \<in> runs l"
-  obtains ts' where "ts' \<in> runs l'" "sim_run r ts ts'"
+  assumes sim: "(l,l') \<in> simulation r" and ts: "ts \<in> runs l"
+  obtains ts' where "ts' \<in> runs l'" "(ts,ts') \<in> sim_run r"
 proof -
-  from ts have "\<exists>ts' \<in> runs l'. sim_run r ts ts'"
+  from ts have "\<exists>ts' \<in> runs l'. (ts, ts') \<in> sim_run r"
   proof (induct)
-    show "\<exists>ts' \<in> runs l'. sim_run r [] ts'" by (auto intro: runs.base)
+    show "\<exists>ts' \<in> runs l'. ([], ts') \<in> sim_run r" by (auto intro: runs.base)
   next
     fix t
     assume "t \<in> trans l" "src t \<in> init l"
     with sim obtain s' t' where
       "(src t, s') \<in> r" "s' \<in> init l'"
-      "t' \<in> trans l'" "src t' = s'" "sim_transition r t t'"
+      "t' \<in> trans l'" "src t' = s'" "(t,t') \<in> sim_transition r"
       unfolding simulation_def by blast
-    thus "\<exists>ts'\<in>runs l'. sim_run r [t] ts'"
+    thus "\<exists>ts'\<in>runs l'. ([t], ts') \<in> sim_run r"
       by (auto intro: runs.start)
   next
     fix t ts
     assume t: "t \<in> trans l" "src t = dst (last ts)"
        and ts: "ts \<in> runs l" "ts \<noteq> []"
-       and ih: "\<exists>ts'\<in>runs l'. sim_run r ts ts'"
-    from ih obtain ts' where ts': "ts' \<in> runs l'" "sim_run r ts ts'" by blast
+       and ih: "\<exists>ts'\<in>runs l'. (ts, ts') \<in> sim_run r"
+    from ih obtain ts' where ts': "ts' \<in> runs l'" "(ts,ts') \<in> sim_run r" by blast
     from ts ts' have "(dst (last ts), dst (last ts')) \<in> r"
       by (metis sim_run_last_state)
     with sim t obtain t' where
-      t': "t' \<in> trans l'" "src t' = dst (last ts')" "sim_transition r t t'"
+      t': "t' \<in> trans l'" "src t' = dst (last ts')" "(t,t') \<in> sim_transition r"
       unfolding simulation_def by blast
     from ts ts' have "ts' \<noteq> []" by (simp add: sim_run_empty_iff)
     with ts' t' have "ts' @ [t'] \<in> runs l'" by (blast intro: runs.step)
-    with ts' t' show "\<exists>ts'\<in>runs l'. sim_run r (ts @ [t]) ts'"
+    with ts' t' show "\<exists>ts'\<in>runs l'. (ts @ [t], ts') \<in> sim_run r"
       by (blast dest: sim_run_append_trans)
   qed
   with that show ?thesis by blast
 qed
 
 lemma sim_traces:
-  assumes sim: "simulation r l l'" and t: "t \<in> traces l"
+  assumes sim: "(l,l') \<in> simulation r" and t: "t \<in> traces l"
   shows "t \<in> traces l'"
 proof -
-  from t obtain ts where ts: "ts \<in> runs l" "t = trace_of_run ts"
+  from t obtain ts where ts: "ts \<in> runs l" "t = map lbl ts"
     by (auto simp: traces_def)
-  with sim obtain ts' where ts': "ts' \<in> runs l'" "sim_run r ts ts'"
+  with sim obtain ts' where ts': "ts' \<in> runs l'" "(ts,ts') \<in> sim_run r"
     by (blast dest: sim_run)
   with ts show ?thesis
     by (auto simp: traces_def sim_run_trace_eq)
 qed
 
-theorem sim_trace_inclusion: "simulation r l l' \<Longrightarrow> traces l \<subseteq> traces l'"
-by (blast dest: sim_traces)
+theorem sim_trace_inclusion: "(l,l') \<in> simulation r \<Longrightarrow> traces l \<subseteq> traces l'"
+  by (blast dest: sim_traces)
+
+corollary simulates_traces: "l \<preceq> l' \<Longrightarrow> traces l \<subseteq> traces l'"
+  unfolding simulates_def by (auto dest: sim_trace_inclusion)
 
 end
 

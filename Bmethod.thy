@@ -1,250 +1,237 @@
 theory Bmethod
 
-imports Main LTS Simulation
+imports Simulation
 
 begin
 
 section {* B machine *}
 
-text {* A B machine is a state-transition system together with an invariant. An invariant
-is a predicate on the states of the system. *}
+text {* 
+  A B machine is a state-transition system together with an invariant,
+  i.e. a state predicate.
+*}
 
 record ('st, 'ev) B_machine =
   lts :: "('st, 'ev) LTS"
   invariant :: "'st \<Rightarrow> bool"
   
-text {* A B machine is considered correct when all the reachable states satisfy the
-        invariant. *}
+text {* 
+  A B machine is considered correct when all the reachable states 
+  satisfy the invariant.
+*}
 
 definition sound_B_machine :: "('st, 'ev) B_machine \<Rightarrow> bool" where
-  "sound_B_machine m \<equiv> \<forall> s \<in> states (lts m) . (invariant m) s"
+  "sound_B_machine m \<equiv> \<forall>s \<in> states (lts m). invariant m s"
 
-text {* The following theorem states two sufficient conditions to establish that a machine is
-correct. *}
+text {* 
+  The following theorem states two sufficient conditions to establish 
+  that a machine is correct.
+*}
 
 theorem machine_po:
-  assumes po_init: "\<forall> s \<in> init (lts m) . (invariant m) s" and 
-          po_step: "\<forall> t \<in> trans (lts m) . (invariant m)(src t) \<longrightarrow> (invariant m)(dst t)"
+  assumes po_init: "\<And>s. s \<in> init (lts m) \<Longrightarrow> invariant m s"
+  and po_step: "\<And>t. \<lbrakk>t \<in> trans (lts m); invariant m (src t)\<rbrakk> \<Longrightarrow> invariant m (dst t)"
   shows "sound_B_machine m"
-proof-
-  from assms have "\<forall> s \<in> states (lts m) . (invariant m) s"
-    sledgehammer by (smt reachable_induct_predicate)
-  then show ?thesis by (simp only:sound_B_machine_def) 
-  qed
+  unfolding sound_B_machine_def using assms by (auto elim: states.induct)
+
 
 section {* B refinement *}
 
-text {* A B refinement is composed of an \emph{abstract} component and a \emph{concrete}
-component related by an \emph{invariant}. The invariant is a binary relation from the states 
-of the abstract component to the states of the concrete one. *}
+text {* 
+  A B refinement is composed of an \emph{abstract} and a \emph{concrete}
+  LTS related by a \emph{gluing invariant}. The gluing invariant is a
+  binary predicate over the states of the abstract LTS and the states
+  of the concrete one. 
+*}
 
+(* SM: Should we allow for the two LTSs to have different state types? *)
 record ('st, 'ev) B_refinement =
-  abstract :: "('st, 'ev) LTS" -- "the abstract component"
-  concrete :: "('st, 'ev) LTS"  -- "the concrete component "
-  invariant :: "'st \<times> 'st \<Rightarrow> bool" -- "relates the abstract to the concrete component"
-  
-text {* A refinement is considered \emph{sound} if the invariant establishes a simulation
-from the concrete component by the abstract component: every execution of the former corresponds
-to some execution of the latter. Isabelle's operator @{text "Collect"}, applied to a relation,
-returns its characteristic predicate. *}
+  abstract :: "('st, 'ev) LTS"     -- "the abstract component"
+  concrete :: "('st, 'ev) LTS"     -- "the concrete component "
+  invariant :: "'st \<times> 'st \<Rightarrow> bool" -- "gluing invariant"
+
+text {* 
+  A refinement is considered \emph{sound} if the invariant establishes
+  a simulation from the concrete component by the abstract component.
+  It then follows that every concrete execution corresponds to some
+  execution of the abstract LTS. In the following definition, note that
+  Isabelle's operator @{text "Collect"} yields the extension of a predicate.
+*}
 
 definition sound_B_refinement :: "('st, 'ev) B_refinement \<Rightarrow> bool" where
-  "sound_B_refinement r \<equiv> simulation (Collect (invariant r)) (concrete r) (abstract r)"
+  "sound_B_refinement r \<equiv> 
+  (abstract r, concrete r) \<in> simulation (Collect (invariant r))"
 
-text {* Thus, in a refinement, the abstract component simulates its concrete counterpart: *}
+text {* 
+  In particular, the abstract LTS in a sound refinement simulates
+  the concrete LTS.
+*}
 
-lemma refinement_sim: "\<lbrakk> sound_B_refinement r \<rbrakk> \<Longrightarrow> (concrete r) \<preceq> (abstract r)"
-using assms unfolding sound_B_refinement_def simulates_def
-by auto
+lemma refinement_sim: 
+  assumes "sound_B_refinement r"
+  shows "abstract r \<preceq> concrete r"
+  using assms unfolding sound_B_refinement_def simulates_def by auto
 
-text {* A special refinement is one that does not change anything, namely the
-identity refinement. It is defined as a function that takes a machine and
-returns the identity refinement. *}
+text {*
+  The identity refinement relates an LTS with itself; the invariant
+  requires the two states to be identical.
+*}
 
 definition refinement_id :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) B_refinement" where
-"refinement_id m \<equiv> \<lparr> abstract = m, concrete = m, invariant = (\<lambda> p . fst p = snd p) \<rparr>"
+  "refinement_id l \<equiv> \<lparr> abstract = l, 
+                       concrete = l, 
+                       invariant = (\<lambda>(s,t). s = t) \<rparr>"
 
-text {* The identity refinement is sound: *}
+text {* The identity refinement is sound. *}
 
-lemma "sound_B_refinement(refinement_id m)"
-unfolding refinement_id_def sound_B_refinement_def simulation_def sim_transition_def
-by auto
+lemma "sound_B_refinement (refinement_id l)"
+  unfolding refinement_id_def sound_B_refinement_def simulation_def sim_transition_def
+  by auto
 
-text {* Next, we definement composition of refinements. This is a partial operation as it is only 
-meaningful when the composed refinements have matching set of states. *}
+text {* 
+  Given two refinements, the following operation defines their composition.
+  It is meaningful only if the concrete LTS of the first refinement agrees
+  with the abstract LTS of the second one.
+*}
 
-definition refinement_compose :: "('st, 'ev) B_refinement \<Rightarrow> ('st, 'ev) B_refinement \<Rightarrow> ('st, 'ev) B_refinement option" where
-"refinement_compose r1 r2 \<equiv> 
-  (if concrete r1 = abstract r2 then
-  Some \<lparr> abstract = abstract r1, concrete = concrete r2, 
-         invariant = \<lambda> p . p \<in> Collect (invariant r2) O Collect (invariant r1) \<rparr>
-  else None)"
+definition refinement_compose  where
+"refinement_compose r r' \<equiv> 
+ \<lparr> abstract = abstract r, concrete = concrete r',
+   invariant = \<lambda> p . p \<in> Collect (invariant r) O Collect (invariant r') \<rparr>"
 
-text {* The following lemma states that the composition of two refinements @{text "r1"} and
-@{text "r2"} is defined whenever the concrete component of @{text "r1"} and the abstract
-component of @{text "r2"} are equal. The abstract (resp. concrete) component of the result
-are the abstract (resp. concrete) component of @{text "r1"} (resp. @{text "r2"}), and the
-invariant is obtained by relational composition of the invariants of @{text "r1"} and @{text "r2"}.*}
-
-lemma refinement_compose_matching:
-  "\<lbrakk> concrete r1 = abstract r2 \<rbrakk> \<Longrightarrow>
-   refinement_compose r1 r2 = 
-     Some \<lparr> abstract = abstract r1,
-            concrete = concrete r2, 
-            invariant = \<lambda> p . p \<in> Collect (invariant r2) O Collect (invariant r1) \<rparr>"
-unfolding refinement_compose_def by auto
-
-text {* The composition of two sound refinements, when it is defined, is sound. This is 
-the object of the following lemma @{text "refinement_compose_soundness"}: *}
+text {*
+  The composition of two sound refinements whose intermediate LTSs agree
+  yields a sound refinement.
+*}
 
 lemma refinement_compose_soundness:
-  assumes 
-    sound_r1: "sound_B_refinement r1" and sound_r2: "sound_B_refinement r2" and
-    "refinement_compose r1 r2 = Some r"
-  shows "sound_B_refinement r"
-proof(cases "concrete r1 = abstract r2")
-  case False
-    hence "refinement_compose r1 r2 = None" by (simp add:refinement_compose_def)
-    with assms(3)
-    have "Some r = None" by simp
-    thus ?thesis by simp
-next
-  case True
-  assume glue: "concrete r1 = abstract r2"
-  show "sound_B_refinement r" unfolding sound_B_refinement_def refinement_compose_def
-  proof -
-    def rs1 \<equiv> "Collect (invariant r1)"
-    def rs2 \<equiv> "Collect (invariant r2)"
-    let ?rs = "rs2 O rs1"
-    def rv \<equiv> "\<lparr> abstract = abstract r1, concrete = concrete r2, invariant = \<lambda> p . (p \<in> ?rs) \<rparr>"
-    with glue and assms(3) have value_r: "r = rv" unfolding refinement_compose_def rs2_def rs1_def rv_def 
-      by simp
-    with sound_r2 have rs2: "simulation rs2 (concrete r2) (abstract r2)"
-      unfolding sound_B_refinement_def rs2_def by auto
-    with sound_r1 and glue have rs1: "simulation rs1 (abstract r2) (abstract r1)"
-      unfolding simulation_def sound_B_refinement_def rs1_def by auto
-    with rs2 have "simulation (rs2 O rs1) (concrete r2) (abstract r1)"  
-      by (metis simulation_composition)
-    with value_r show "simulation (Collect (invariant r)) (concrete r) (abstract r)"
-      unfolding rv_def rs1_def rs2_def by auto
-  qed
-qed
+  assumes sound: "sound_B_refinement r"
+  and sound': "sound_B_refinement r'" 
+  and match: "concrete r = abstract r'"
+  shows "sound_B_refinement (refinement_compose r r')"
+  using assms simulation_composition
+  unfolding sound_B_refinement_def refinement_compose_def
+  by fastforce
 
-text {* We now want to verify that our definition of refinement composition satisfies
-some simple properties. First any identity refinement is left-neutral: *}
+text {* 
+  We now verify some simple properties of refinement composition.
+  First, identity refinement is left-neutral.
+*}
 
 lemma refinement_compose_neutral_left:
-  "refinement_compose (refinement_id (abstract r)) r = Some r"
-  unfolding refinement_compose_def
-proof-
-  have "concrete (refinement_id (abstract r)) = abstract r"
-    unfolding refinement_id_def by simp
-moreover
-  let ?invariant = "\<lambda>p. p \<in> Collect (invariant r) O Collect (invariant (refinement_id (abstract r)))"
-  let ?r = "\<lparr>abstract = abstract (refinement_id (abstract r)), concrete = concrete r, invariant = ?invariant\<rparr>"
-  have "Some ?r = Some r"
-    proof -
-      have "abstract (refinement_id (abstract r)) = abstract r" unfolding refinement_id_def by simp
-    moreover
-      have "?invariant = (\<lambda>p. p \<in> Collect (invariant r))"
-        unfolding refinement_id_def relcomp_def by auto
-    ultimately show ?thesis by simp
-    qed
-ultimately
-  show "(if concrete (refinement_id (abstract r)) = abstract r then Some ?r else None) = Some r" 
-    by simp
+  "refinement_compose (refinement_id (abstract r)) r = r" (is "?lhs = r")
+proof -
+  have "abstract ?lhs = abstract r"
+       "concrete ?lhs = concrete r"
+       "invariant ?lhs = invariant r"
+    unfolding refinement_compose_def refinement_id_def by auto
+  thus ?thesis by simp
 qed
 
-text {* Second, any identity refinement is right-neutral for refinement composition. *}
+text {* 
+  Similarly, identity refinement is right-neutral for refinement composition.
+*}
 
 lemma refinement_compose_neutral_right:
-  "refinement_compose r (refinement_id (concrete r)) = Some r"
-  unfolding refinement_compose_def
+  "refinement_compose r (refinement_id (concrete r)) = r" (is "?lhs = r")
 proof -
-  have "concrete r = abstract (refinement_id (concrete r))"
-    unfolding refinement_id_def by simp
-moreover
-  let ?invariant = "\<lambda>p. p \<in> Collect (invariant (refinement_id (concrete r))) O Collect (invariant r)"
-  let ?r = "\<lparr>abstract = abstract r, concrete = concrete (refinement_id (concrete r)), invariant = ?invariant\<rparr>"
-  have "?r = r"
-  proof-
-    have "concrete(refinement_id(concrete r)) = concrete r" 
-      unfolding refinement_id_def by simp
-  moreover
-    have "?invariant = (\<lambda>p. p \<in> Collect (invariant r))"
-      unfolding refinement_id_def relcomp_def by auto
-  ultimately
-    show ?thesis by simp
-  qed
-ultimately
-  show "(if concrete r = abstract (refinement_id (concrete r)) then Some ?r else None) = Some r"
-    by simp
+  have "abstract ?lhs = abstract r"
+       "concrete ?lhs = concrete r"
+       "invariant ?lhs = invariant r"
+    unfolding refinement_compose_def refinement_id_def by auto
+  thus ?thesis by simp
 qed
-  
-text {* Last, refinement composition is associative. The expression of this
-property is not as straightforward as we could expect due to the partialness
-of composition. *}
 
+text {* 
+  Finally, refinement composition is associative.
+*}
 lemma refinement_compose_associative:
-  "\<lbrakk> sound_B_refinement r1; sound_B_refinement r2; sound_B_refinement r3;
-     concrete r1 = abstract r2; concrete r2 = abstract r3 \<rbrakk> \<Longrightarrow>
-  \<exists> r12 r23 . Some r12 = refinement_compose r1 r2 \<and> 
-         Some r23 = refinement_compose r2 r3 \<and>
-         refinement_compose r12 r3 = refinement_compose r1 r23"
-proof(simp add:sound_B_refinement_def refinement_compose_def, auto)
-qed
+  "refinement_compose (refinement_compose r r') r'' =
+   refinement_compose r (refinement_compose r' r'')"
+   unfolding refinement_compose_def by auto
+
 
 section {* B development *}
 
-text {* A B development is a specification and the development of an implementation of that
-specification by stepwise refinements. We first provide a formalization of design, as a list
-of refinements: *}
-
+text {* 
+  A B design is represented as a sequence of refinements.
+  The idea is that the abstract LTS of the first refinement is
+  gradually refined into the concrete LTS of the last refinement.
+*}
+(* sm: If we were to generalize refinements so that states of the
+   LTSs can be of different types then we would be in trouble in
+   assigning a type to a design. *)
 type_synonym ('st, 'ev) B_design = "('st, 'ev) B_refinement list"
 
-text {* We specify a predicate @{text "sound_B_design"}, responsible for identifying sound 
-developments: each refinement is sound, and the chain of refinements is continuous, i.e. the
-concrete component of a refinement is the abstract component of the next refinement: *}
+text {* 
+  A design is \emph{sound} if every refinement in the list is sound
+  and if the concrete LTS of every refinement agrees with the abstract
+  LTS of its successor in the design.
+*}
+definition sound_B_design where
+  "sound_B_design refs \<equiv> \<forall>i < size refs.
+     sound_B_refinement (refs!i)
+   \<and> (Suc i < size refs \<longrightarrow> concrete (refs!i) = abstract (refs!(Suc i)))"
 
+(*
 inductive sound_B_design :: "('st, 'ev) B_design \<Rightarrow> bool" where
   base: "sound_B_design []" |
   step: "\<lbrakk> sound_B_refinement x; xs \<noteq> []; concrete x = abstract (hd xs); sound_B_design xs \<rbrakk> \<Longrightarrow> 
            sound_B_design (x # xs)"
-
-text {* In such a design, by transitivity of the simulates relation, the abstract component of the 
-first refinement simulates the concrete component of the last refinement: *}
-
-lemma 
-  design_sim: "\<lbrakk> sound_B_design dev; dev \<noteq> [] \<rbrakk>  \<Longrightarrow>(concrete (last dev)) \<preceq> (abstract(hd dev)) "
-proof(induct rule:sound_B_design.induct, simp, simp)
-  fix x xs
-  assume "sound_B_refinement x" "concrete x = abstract (hd xs)"
-         "concrete (last xs) \<preceq> abstract (hd xs)"
-  from `sound_B_refinement x` have "concrete x \<preceq> abstract x" by (rule refinement_sim)
-  with `concrete x = abstract (hd xs)` `concrete (last xs) \<preceq> abstract (hd xs)`
-  show "concrete (last xs) \<preceq> abstract x" by (metis simulates_transitive)
+*)
+text {* 
+  In a sound design, the abstract LTS of the first refinement
+  simulates the concrete LTS of the last refinement.
+*}
+lemma design_sim:
+  assumes refs: "sound_B_design refs" and nempty: "refs \<noteq> []"
+  shows "abstract (hd refs) \<preceq> concrete (last refs)"
+proof -
+  { fix i
+    have "i < size refs \<Longrightarrow> abstract (refs!0) \<preceq> concrete (refs!i)" (is "?P i \<Longrightarrow> ?Q i")
+    proof (induct i)
+      assume "0 < size refs"
+      with refs show "?Q 0" 
+        unfolding sound_B_design_def by (auto intro: refinement_sim)
+    next
+      fix j
+      assume ih: "?P j \<Longrightarrow> ?Q j" and j: "Suc j < size refs"
+      hence "?Q j" by auto
+      moreover
+      from refs j 
+      have "concrete (refs!j) = abstract (refs!(Suc j))" 
+           "abstract (refs!(Suc j)) \<preceq> concrete (refs!(Suc j))"
+        unfolding sound_B_design_def by (auto intro: refinement_sim)
+      ultimately show "?Q (Suc j)" by (auto elim: simulates_transitive)
+    qed
+  }
+  with nempty show ?thesis by (simp add: hd_conv_nth last_conv_nth)
 qed
 
-text {* Eventually, we give a formalization of a B development as a pair formed by a specification,
-namely a B machine, and a design: *}
+text {* 
+  Finally, we define a B development as consisting of a B machine
+  and a B design. A sound B development consists of a sound B
+  machine and a sound B design thus that the abstract LTS of the
+  first refinement in the design is the LTS of the B machine.
+*}
 
 record ('st, 'ev) B_development =
   spec :: "('st, 'ev) B_machine"
   design :: "('st, 'ev) B_design"
 
-text {* Then a B development is sound when the machine and the design are sound. Moreover, the
-design must have the specification machine as initial abstract component: *}
-
-definition sound_B_development :: "('st, 'ev) B_development \<Rightarrow> bool" where
+definition sound_B_development where
   "sound_B_development dev \<equiv> 
     sound_B_machine (spec dev) \<and> sound_B_design (design dev) \<and>
     (design dev \<noteq> [] \<longrightarrow> (lts (spec dev)) = (abstract (hd (design dev))))"
 
-text {* The following theorem states that, in a sound B development, the initial specification
-  simulates the concrete component of the final refinement of the design: *}
+text {* 
+  It follows that in a sound B development, the concrete LTS of the
+  final refinement simulates the initial specification.
+*}
 
-theorem development_sim: 
-  "\<lbrakk> sound_B_development d ; design d \<noteq> [] \<rbrakk> \<Longrightarrow> concrete (last (design d)) \<preceq> lts (spec d)"
-  by(metis design_sim sound_B_development_def)
+theorem development_sim:
+  assumes "sound_B_development d" and "design d \<noteq> []"
+  shows "lts (spec d) \<preceq> concrete (last (design d))"
+  using assms by(metis design_sim sound_B_development_def)
 
 end
