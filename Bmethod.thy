@@ -211,7 +211,7 @@ qed
 text {* 
   Finally, we define a B development as consisting of a B machine
   and a B design. A sound B development consists of a sound B
-  machine and a sound B design thus that the abstract LTS of the
+  machine and a sound B design such that the abstract LTS of the
   first refinement in the design is the LTS of the B machine.
 *}
 
