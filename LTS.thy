@@ -77,7 +77,7 @@ text {*
   It contains the principle for proving invariants.
 *}
 lemmas reachable_induct_predicate = states.induct
-
+text {* @{thm reachable_induct_predicate} *}
 
 subsection {* Behavior *}
 

@@ -60,7 +60,7 @@ text {*
 
 definition sound_B_refinement :: "('st, 'ev) B_refinement \<Rightarrow> bool" where
   "sound_B_refinement r \<equiv> 
-  (abstract r, concrete r) \<in> simulation (Collect (invariant r))"
+  (concrete r, abstract r) \<in> simulation (Collect (invariant r))"
 
 text {* 
   In particular, the abstract LTS in a sound refinement simulates
@@ -69,7 +69,7 @@ text {*
 
 lemma refinement_sim: 
   assumes "sound_B_refinement r"
-  shows "abstract r \<preceq> concrete r"
+  shows "concrete r \<preceq> abstract r"
   using assms unfolding sound_B_refinement_def simulates_def by auto
 
 text {*
@@ -97,7 +97,7 @@ text {*
 definition refinement_compose  where
 "refinement_compose r r' \<equiv> 
  \<lparr> abstract = abstract r, concrete = concrete r',
-   invariant = \<lambda> p . p \<in> Collect (invariant r) O Collect (invariant r') \<rparr>"
+   invariant = \<lambda> p . p \<in> Collect (invariant r') O Collect (invariant r) \<rparr>"
 
 text {*
   The composition of two sound refinements whose intermediate LTSs agree
@@ -173,22 +173,16 @@ definition sound_B_design where
      sound_B_refinement (refs!i)
    \<and> (Suc i < size refs \<longrightarrow> concrete (refs!i) = abstract (refs!(Suc i)))"
 
-(*
-inductive sound_B_design :: "('st, 'ev) B_design \<Rightarrow> bool" where
-  base: "sound_B_design []" |
-  step: "\<lbrakk> sound_B_refinement x; xs \<noteq> []; concrete x = abstract (hd xs); sound_B_design xs \<rbrakk> \<Longrightarrow> 
-           sound_B_design (x # xs)"
-*)
 text {* 
   In a sound design, the abstract LTS of the first refinement
   simulates the concrete LTS of the last refinement.
 *}
 lemma design_sim:
   assumes refs: "sound_B_design refs" and nempty: "refs \<noteq> []"
-  shows "abstract (hd refs) \<preceq> concrete (last refs)"
+  shows "concrete (last refs) \<preceq> abstract (hd refs)"
 proof -
   { fix i
-    have "i < size refs \<Longrightarrow> abstract (refs!0) \<preceq> concrete (refs!i)" (is "?P i \<Longrightarrow> ?Q i")
+    have "i < size refs \<Longrightarrow> concrete (refs!i) \<preceq> abstract (refs!0)" (is "?P i \<Longrightarrow> ?Q i")
     proof (induct i)
       assume "0 < size refs"
       with refs show "?Q 0" 
@@ -200,7 +194,7 @@ proof -
       moreover
       from refs j 
       have "concrete (refs!j) = abstract (refs!(Suc j))" 
-           "abstract (refs!(Suc j)) \<preceq> concrete (refs!(Suc j))"
+           "concrete (refs!(Suc j)) \<preceq> abstract (refs!(Suc j))"
         unfolding sound_B_design_def by (auto intro: refinement_sim)
       ultimately show "?Q (Suc j)" by (auto elim: simulates_transitive)
     qed
@@ -231,7 +225,7 @@ text {*
 
 theorem development_sim:
   assumes "sound_B_development d" and "design d \<noteq> []"
-  shows "lts (spec d) \<preceq> concrete (last (design d))"
+  shows "concrete (last (design d)) \<preceq> lts (spec d)"
   using assms by(metis design_sim sound_B_development_def)
 
 end

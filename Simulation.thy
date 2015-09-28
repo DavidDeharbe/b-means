@@ -53,11 +53,12 @@ where "(l \<preceq> l') \<equiv> \<exists>r. (l,l') \<in> simulation r"
 subsection {* Properties *}
 
 text {*
-   Let us verify some basic properties of simulations. First we have that the
-   identity relation establishes that a LTS simulates itself.
+  Let us verify some basic properties of simulations. First we have that
+  every LTS simulates itself, through a lifting of the identity relation
+  over states.
 *}
 
-lemma simulation_identity : "Id \<subseteq> simulation Id" 
+lemma simulation_identity : "(Id::('st,'ev) LTS rel) \<subseteq> simulation (Id::'st rel)" 
   unfolding simulation_def sim_transition_def by auto
 
 text {*
