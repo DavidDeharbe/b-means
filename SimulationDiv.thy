@@ -101,7 +101,7 @@ text {*
   simulation @{text "r"} from @{text "l"} to @{text "l'"}.
 *}
 definition simulated_by (infixl "\<preceq>" 50)
-where "(l \<preceq> l') \<equiv> \<exists>r. (l,l') \<in> simulation r"
+where "(l \<preceq> l') \<equiv> \<exists>r. (l,l') \<in> simulation_div r"
 
 (* A lemma that we might want to prove is the containment of the set of diverging events:
 
@@ -123,6 +123,9 @@ text {*
 lemma simulation_identity : "(Id::('st,'ev) LTSDiv rel) \<subseteq> simulation (Id::'st rel)" 
   unfolding simulation_def sim_transition_def by auto
 
+lemma simulation_div_identity : "(Id::('st,'ev) LTSDiv rel) \<subseteq> simulation_div (Id::'st rel)" 
+  unfolding simulation_div_def sim_div_transition_def by auto
+
 text {*
    Second, we have that the composition of two simulation relations is a simulation relation.
 *}
@@ -131,20 +134,27 @@ lemma simulation_composition:
   assumes "(l, l') \<in> simulation r" and "(l', l'') \<in> simulation r'"
   shows "(l, l'') \<in> simulation (r O r')"
 using assms unfolding simulation_def
-  using assms unfolding simulation_def sim_transition_def relcomp_unfold
+  using assms unfolding sim_transition_def relcomp_unfold
+  by auto (metis+)
+
+lemma simulation_div_composition:
+  assumes "(l, l') \<in> simulation_div r" and "(l', l'') \<in> simulation_div r'"
+  shows "(l, l'') \<in> simulation_div (r O r')"
+using assms unfolding simulation_div_def
+  using assms unfolding sim_div_transition_def relcomp_unfold
   by auto (metis+)
 
 text {* 
   These properties are lifted to the simulates relation over LTS.
 *}
 
-lemma simulated_by_reflexive: "l \<preceq> l" 
-  unfolding simulated_by_def using simulation_identity by blast
+lemma simulated_div_by_reflexive: "l \<preceq> l" 
+  unfolding simulated_by_def using simulation_div_identity by blast
 
 lemma simulates_transitive:
   assumes "l \<preceq> l'" and "l' \<preceq> l''"
   shows "l \<preceq> l''"
-  using assms unfolding simulated_by_def using simulation_composition by blast
+  using assms unfolding simulated_by_def using simulation_div_composition by blast
 
 
 subsection {* Simulation and behavior *}

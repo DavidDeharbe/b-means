@@ -26,7 +26,7 @@ record ('st, 'ev) LTSDiv =
 
 text {* 
   The set of transitions @{term "div_trans l"} corresponds to transitions
-  that do not provoke a divergence.
+  that provoke a divergence.
 *}
 
 definition div_trans :: "('st, 'ev) LTSDiv \<Rightarrow> ('st, 'ev) Tr set" where
