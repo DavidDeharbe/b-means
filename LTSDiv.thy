@@ -131,8 +131,8 @@ text {*
 inductive_set runs :: "('st, 'ev) LTSDiv \<Rightarrow> ('st, 'ev) Run set"  
   for l :: "('st, 'ev) LTSDiv" where
   base: "[] \<in> runs l"
-| start: "\<lbrakk> t \<in> conv_tr l; src t \<in> init l \<rbrakk> \<Longrightarrow> [t] \<in> runs l"
-| step: "\<lbrakk> t \<in> conv_tr l; ts \<in> runs l; ts \<noteq> []; src t = dst (last ts) \<rbrakk>
+| start: "\<lbrakk> t \<notin> div_trans l; src t \<in> init l \<rbrakk> \<Longrightarrow> [t] \<in> runs l"
+| step: "\<lbrakk> t \<notin> div_trans l; ts \<in> runs l; ts \<noteq> []; src t = dst (last ts) \<rbrakk>
          \<Longrightarrow> ts @ [t] \<in> runs l"
 
 inductive_cases empty_run : "[] \<in> runs l"
@@ -147,6 +147,15 @@ text {*
 lemma "ts \<in> runs l \<Longrightarrow> ts \<noteq> [] \<Longrightarrow> src (hd ts) \<in> init l"
   by (induct rule: runs.induct, auto)
 
+text {*
+  The function @{text div_run} provides the set of events that cause a divergence
+  of a LTS @{text "l"} after it has executed run @{text "r"}.
+*}
+
+definition div_run :: "('st, 'ev) LTSDiv \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
+"div_run l r \<equiv> 
+   if r = [] then div_states l (init l)
+   else div_state l (dst (last r))"
 
 subsubsection {* External behavior. *}
 

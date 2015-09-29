@@ -9,8 +9,8 @@ section {* Labeled transition systems and their executions *}
 subsection {* Labeled transition systems *}
 
 text {* 
-  The semantics of a B component is a discrete, eventful, state-transition systems. We 
-  start by defining labeled transition systems and their behaviors, independently of B.
+  The semantics of a B component is a discrete, eventful, state-transition system. We 
+  formalize labeled transition systems (LTS) and their behaviors, independently of B.
   An LTS is given by a set of initial states and a set of transitions, which are
   triples (source and destination state, and a transition label). The following
   definitions of transitions and transition systems are parameterized by types
