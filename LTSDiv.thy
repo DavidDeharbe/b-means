@@ -45,7 +45,7 @@ text {*
   of states.
 *}
 
-(* dd : there must be a more concise way to express this: *)
+(* dd : is there a more concise way to express this? *)
 
 definition div_states :: "('st, 'ev) LTSDiv \<Rightarrow> 'st set \<Rightarrow> 'ev set" where
   "div_states l s \<equiv> { e | e st . st \<in> s \<and> e \<in> div_state l st }"
@@ -59,7 +59,7 @@ text {*
 inductive_set states :: "('st, 'ev) LTSDiv \<Rightarrow> 'st set" 
   for l :: "('st, 'ev) LTSDiv" where
   base[elim!]: "s \<in> init l \<Longrightarrow> s \<in> states l"
-| step[elim!]: "\<lbrakk> t \<notin> div_trans l; src t \<in> states l \<rbrakk> \<Longrightarrow> dst t \<in> states l"
+| step[elim!]: "\<lbrakk> t \<in> trans l; t \<notin> div_trans l; src t \<in> states l \<rbrakk> \<Longrightarrow> dst t \<in> states l"
 
 inductive_cases base : "s \<in> states l"
 inductive_cases step : "dst t \<in> states l"
@@ -77,7 +77,7 @@ We first define a function @{text "successors"} that returns the set of successo
 given set @{text "S"} of states in a given LTS with divergences @{text "l"}: *}
 
 definition successors :: "('st, 'ev) LTSDiv \<Rightarrow> 'st set \<Rightarrow> 'st set" where
-  "successors l S \<equiv> { dst t | t . t \<notin> div_trans l \<and> src t \<in> S }"
+  "successors l S \<equiv> { dst t | t . t \<in> trans l \<and> t \<notin> div_trans l \<and> src t \<in> S }"
 
 text {* Next, we show that the successors of the reachable states are also reachable. *}
 
