@@ -1,4 +1,4 @@
-theory BMethod
+theory Bmethod
 
 imports Simulation
 begin
@@ -38,7 +38,7 @@ where
   "outgoing_trans l s \<equiv> { t | t . t \<in> trans l \<and> src t = s}"
 
 text {*
-  The function @{text "accepted_events"}, given a LTS and a state,
+  The function @{text "accepted_events"}, given an LTS and a state,
   returns the set of events that label the outgoing transitions in
   that state. It corresponds to the operations and the corresponding
   parameter valuations that are applicable in that state.  
@@ -47,27 +47,27 @@ text {*
 definition
   accepted_events :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> 'ev set"
 where
-  "accepted_events l s \<equiv> { e | e t . t \<in> outgoing_trans l s \<and> lbl t = e}"
+  "accepted_events l s \<equiv> lbl ` (outgoing_trans l s)"
+(*  "accepted_events l s \<equiv> { e | e t . t \<in> outgoing_trans l s \<and> lbl t = e}" *)
 
 text {*
-
   We now provide the formalization of the concept of simulation
   corresponding to the relation between the abstract and concrete
   counterparts of a refinement in the B method.
-
 *}
 definition simulation_B :: "'st rel \<Rightarrow> ('st, 'ev) LTS rel" where
+  (* sm: added inclusion of accepted events and slightly simplified remaining definition *)
   "simulation_B r \<equiv> { (l,l') | l l'.
      (\<forall>s \<in> init l. \<exists>s' \<in> init l'. (s, s') \<in> r)
    \<and> (\<forall>s s'. (s, s') \<in> r \<longrightarrow>
-        (\<forall> e \<in> accepted_events l' s'.
-           (\<forall>t \<in> outgoing_trans l s.
-               lbl t = e \<longrightarrow> 
-               (\<exists>t' \<in> outgoing_trans l' s'. 
-                 src t' = s' \<and> lbl t' = e \<and> (dst t, dst t') \<in> r)))) }"
+         accepted_events l' s' \<subseteq> accepted_events l s \<and>
+         (\<forall>t \<in> outgoing_trans l s.
+             lbl t \<in> accepted_events l' s' \<longrightarrow> 
+             (\<exists>t' \<in> outgoing_trans l' s'. 
+                  src t' = s' \<and> lbl t' = lbl t \<and> (dst t, dst t') \<in> r))) }"
 
 definition is_simulated_by_B (infixl "\<preceq>B" 50)
-  where "(l \<preceq>B l') \<equiv> \<exists>r. (l,l') \<in> simulation_B r"
+  where "l \<preceq>B l' \<equiv> \<exists>r. (l,l') \<in> simulation_B r"
 
 text {*
    We have that the composition of two simulation relations is
@@ -78,7 +78,14 @@ lemma simulation_B_composition:
   assumes "(l, l') \<in> simulation_B r" and "(l', l'') \<in> simulation_B r'"
   shows "(l, l'') \<in> simulation_B (r O r')"
   using assms unfolding simulation_B_def sim_transition_def relcomp_unfold
-  by auto (metis+)
+  by fastforce
+
+lemma simulates_B_transitive:
+  assumes "l \<preceq>B l'" and "l' \<preceq>B l''"
+  shows   "l \<preceq>B l''"
+  using assms simulation_B_composition
+  unfolding is_simulated_by_B_def
+  by blast
 
 definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
 "run_accepted_events l r \<equiv> 
@@ -86,41 +93,35 @@ definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \
    else accepted_events l (dst (last r))"
 
 text {* 
-
-  The external, or observable, behavior of a LTS is an expression of
+  The external, or observable, behavior of an LTS is an expression of
   the events to which the LTS responds. The observable behavior is
   then a pair composed of the list of the successive events found
   along a \emph{run} and the set of events that are accepted when the
   run has reached the last state.
 
   The type corresponding to such observations is defined as follows:
-
 *}
 type_synonym 'ev TrB = "'ev list * 'ev set"
 
 text {*
-
   Next, the function @{text run_trace} maps observations of internal
-  behavior to observations of external behavior.  *}
+  behavior to observations of external behavior.
+*}
 
 definition run_trace :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev TrB" where 
   "run_trace l r \<equiv> (map lbl r, run_accepted_events l r)"
 
 text {*
-
-  The following function returns the external behavior of a LTS, as
+  The following function returns the external behavior of an LTS, as
   the set of its traces.
-
 *}
 
 definition traces_B :: "('st, 'ev) LTS \<Rightarrow> 'ev TrB set" where
   "traces_B l \<equiv> (run_trace l) ` (runs l)"
 
 text {*
-
   At that point, we propose a few lemmas, without proofs. They may, or
   may not, be useful to prove more interesting properties.
-
 *}
 lemma run_trace_empty_inv:
   "([], UNION (init l) (accepted_events l)) \<in> traces_B l"
@@ -136,11 +137,9 @@ shows
 sorry
 
 text {*
-
   It would be interesting to come up with a proof of the following theorem. It
   establishes a property on the traces of between LTSes that relate through
   the (B inspired notion of) simulation.
-
 *}
 lemma sim_traces_B:
   assumes sim: "l \<preceq>B l'" and tr: "(tr, acc) \<in> traces_B l"
@@ -197,9 +196,12 @@ text {*
   LTS related by a \emph{gluing invariant}. The gluing invariant is a
   binary predicate over the states of the abstract LTS and the states
   of the concrete one. 
+
+  We assume that the two LTSs are defined over the same types of states
+  and events. For example, the type of states could be some universal
+  type mapping variable names to values.
 *}
 
-(* SM: Should we allow for the two LTSs to have different state types? *)
 record ('st, 'ev) B_refinement =
   abstract :: "('st, 'ev) LTS"     -- "the abstract component"
   concrete :: "('st, 'ev) LTS"     -- "the concrete component "
@@ -241,9 +243,9 @@ definition refinement_id :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) B_refinemen
 text {* The identity refinement is sound. *}
 
 lemma "sound_B_refinement (refinement_id l)"
-  unfolding refinement_id_def sound_B_refinement_def simulation_B_def sim_transition_def
-sorry
-(*  by auto *)
+  unfolding refinement_id_def sound_B_refinement_def simulation_B_def 
+            sim_transition_def outgoing_trans_def
+  by auto
 
 text {* 
   Given two refinements, the following operation defines their composition.
@@ -261,7 +263,6 @@ text {*
   yields a sound refinement.
 *}
 
-(* dd: updated proof script *)
 lemma refinement_compose_soundness:
   assumes sound: "sound_B_refinement r"
   and sound': "sound_B_refinement r'" 
@@ -335,7 +336,6 @@ text {*
   In a sound design, the abstract LTS of the first refinement
   simulates the concrete LTS of the last refinement.
 *}
-(* dd: not fully updated: e.g. simulates_transitive is not adequate *)
 lemma design_sim:
   assumes refs: "sound_B_design refs" and nempty: "refs \<noteq> []"
   shows "concrete (last refs) \<preceq>B abstract (hd refs)"
@@ -355,7 +355,7 @@ proof -
       have "concrete (refs!j) = abstract (refs!(Suc j))" 
            "concrete (refs!(Suc j)) \<preceq>B abstract (refs!(Suc j))"
         unfolding sound_B_design_def by (auto intro: refinement_sim)
-      ultimately show "?Q (Suc j)" by (auto elim: simulates_transitive)
+      ultimately show "?Q (Suc j)" by (auto elim: simulates_B_transitive)
     qed
   }
   with nempty show ?thesis by (simp add: hd_conv_nth last_conv_nth)
