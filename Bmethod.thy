@@ -1,6 +1,7 @@
 theory Bmethod
 
 imports Simulation
+
 begin
 
 text {* 
@@ -48,7 +49,6 @@ definition
   accepted_events :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> 'ev set"
 where
   "accepted_events l s \<equiv> lbl ` (outgoing_trans l s)"
-(*  "accepted_events l s \<equiv> { e | e t . t \<in> outgoing_trans l s \<and> lbl t = e}" *)
 
 text {*
   We now provide the formalization of the concept of simulation
@@ -56,17 +56,16 @@ text {*
   counterparts of a refinement in the B method.
 *}
 definition simulation_B :: "'st rel \<Rightarrow> ('st, 'ev) LTS rel" where
-  (* sm: added inclusion of accepted events and slightly simplified remaining definition *)
   "simulation_B r \<equiv> { (l,l') | l l'.
      (\<forall>s \<in> init l. \<exists>s' \<in> init l'. (s, s') \<in> r)
    \<and> (\<forall>s s'. (s, s') \<in> r \<longrightarrow>
-         accepted_events l' s' \<subseteq> accepted_events l s \<and>
+         accepted_events l s \<supseteq> accepted_events l' s' \<and>
          (\<forall>t \<in> outgoing_trans l s.
              lbl t \<in> accepted_events l' s' \<longrightarrow> 
              (\<exists>t' \<in> outgoing_trans l' s'. 
                   src t' = s' \<and> lbl t' = lbl t \<and> (dst t, dst t') \<in> r))) }"
 
-definition is_simulated_by_B (infixl "\<preceq>B" 50)
+definition simulated_B (infixl "\<preceq>B" 50)
   where "l \<preceq>B l' \<equiv> \<exists>r. (l,l') \<in> simulation_B r"
 
 text {*
@@ -84,8 +83,9 @@ lemma simulates_B_transitive:
   assumes "l \<preceq>B l'" and "l' \<preceq>B l''"
   shows   "l \<preceq>B l''"
   using assms simulation_B_composition
-  unfolding is_simulated_by_B_def
+  unfolding simulated_B_def
   by blast
+
 
 definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
 "run_accepted_events l r \<equiv> 
@@ -125,15 +125,25 @@ text {*
 *}
 lemma run_trace_empty_inv:
   "([], UNION (init l) (accepted_events l)) \<in> traces_B l"
-sorry
+unfolding traces_B_def
+by (simp add: image_iff run_accepted_events_def run_trace_def runs.base)
+
+lemma run_append:
+assumes
+   "r \<in> runs l" and "r \<noteq> []" and 
+   "t \<in> trans l" and "src t = dst (last r)"
+shows
+   "r @ [t] \<in> runs l"
+using assms
+by (simp add: runs.step)
 
 lemma run_trace_inv:
 assumes
-   "r \<in> runs l" and "tr = run_trace l r" and  "tr \<in> traces_B l" and "acc = snd tr"
-and 
-   "r \<noteq> []" and "t \<in> trans l" and "src t = dst (last r)" and "lbl t \<in> acc"
+   "(tr, acc) \<in> traces_B l" and "r \<noteq> []" and "acc \<noteq> {}" and
+   "t \<in> trans l" and "src t = dst (last tr)" and "lbl t \<in> acc"
 shows
-   "run_trace l (r @ [t]) \<in> traces_B l"
+   "(tr @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
+(*sledgehammer[verbose, provers="cvc4 z3 e spass remote_vampire", timeout=300]*)
 sorry
 
 text {*
@@ -143,10 +153,13 @@ text {*
 *}
 lemma sim_traces_B:
   assumes sim: "l \<preceq>B l'" and tr: "(tr, acc) \<in> traces_B l"
-  shows "\<exists> (tr', acc') \<in> traces_B l'.
+  shows "\<exists> (tr', acc') \<in> traces_B l' .
           acc \<supseteq> acc' \<and>
-          (tr = tr' \<or> prefix tr' tr \<and> (\<exists> d \<in> acc'. prefixeq (tr' @ [d]) tr))"
-sorry
+          (tr = tr' \<or> prefix tr' tr \<and> (\<exists> d \<in> acc'. d \<notin> acc \<and> prefixeq (tr' @ [d]) tr))"
+using assms unfolding simulated_B_def traces_B_def runs_def runsp_def
+sledgehammer[verbose, provers="cvc4 z3 e spass remote_vampire", timeout=300]
+
+by fastforce
 
 (* 
   -------------------------------------------------------------------------

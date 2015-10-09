@@ -66,11 +66,11 @@ text {*
 *}
 
 lemma reachable_induct_set:
-  assumes base: "init l \<subseteq> S"
-  and step: "successors l S \<subseteq> S"
-  and s: "s \<in> states l"
+  assumes s: "s \<in> states l"
+  and "init l \<subseteq> S"
+  and "successors l S \<subseteq> S"
   shows "s \<in> S"
-  using s base step by (induct s) (auto simp: successors_def)
+  using assms by (induct s) (auto simp: successors_def)
 
 text {*
   The following lemma is similar but stated in terms of a predicate.
@@ -120,7 +120,6 @@ text {*
 
 lemma "ts \<in> runs l \<Longrightarrow> ts \<noteq> [] \<Longrightarrow> src (hd ts) \<in> init l"
   by (induct rule: runs.induct, auto)
-
 
 subsubsection {* External behavior. *}
 

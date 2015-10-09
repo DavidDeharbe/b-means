@@ -47,7 +47,7 @@ text {*
   We say that @{text "l'"} simulates @{text l} if is there is a simulation between
   @{text l} and @{text "l'"}.
 *}
-definition simulates (infixl "\<preceq>" 50)
+definition simulated (infixl "\<preceq>" 50)
 where "(l \<preceq> l') \<equiv> \<exists>r. (l,l') \<in> simulation r"
 
 subsection {* Properties *}
@@ -74,14 +74,13 @@ text {*
   These properties are lifted to the simulates relation over LTS.
 *}
 
-lemma simulates_reflexive: "l \<preceq> l" 
-  unfolding simulates_def using simulation_identity by blast
+lemma simulated_reflexive: "l \<preceq> l" 
+  unfolding simulated_def using simulation_identity by blast
 
-lemma simulates_transitive:
+lemma simulated_transitive:
   assumes "l \<preceq> l'" and "l' \<preceq> l''"
   shows "l \<preceq> l''"
-  using assms unfolding simulates_def using simulation_composition by blast
-
+  using assms unfolding simulated_def using simulation_composition by blast
 
 subsection {* Simulation and behavior *}
 
@@ -228,7 +227,7 @@ theorem sim_trace_inclusion: "(l,l') \<in> simulation r \<Longrightarrow> traces
   by (blast dest: sim_traces)
 
 corollary simulates_traces: "l \<preceq> l' \<Longrightarrow> traces l \<subseteq> traces l'"
-  unfolding simulates_def by (auto dest: sim_trace_inclusion)
+  unfolding simulated_def by (auto dest: sim_trace_inclusion)
 
 end
 

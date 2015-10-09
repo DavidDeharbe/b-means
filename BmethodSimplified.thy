@@ -29,9 +29,9 @@ text {*
 *}
 
 theorem machine_po:
-  assumes po_init: "\<And>s. s \<in> init (lts m) \<Longrightarrow> invariant m s"
-  and po_step: "\<And>t. \<lbrakk>t \<in> trans (lts m); invariant m (src t)\<rbrakk> \<Longrightarrow> invariant m (dst t)"
-  shows "sound_B_machine m"
+  assumes "\<And>s. s \<in> init (lts m) \<Longrightarrow> invariant m s"
+      and "\<And>t. \<lbrakk>t \<in> trans (lts m); invariant m (src t)\<rbrakk> \<Longrightarrow> invariant m (dst t)"
+    shows "sound_B_machine m"
   unfolding sound_B_machine_def using assms by (auto elim: states.induct)
 
 
@@ -70,7 +70,11 @@ text {*
 lemma refinement_sim: 
   assumes "sound_B_refinement r"
   shows "concrete r \<preceq> abstract r"
-  using assms unfolding sound_B_refinement_def simulates_def by auto
+  using assms unfolding sound_B_refinement_def simulated_def by auto
+
+lemma refinement_sim2: 
+  "\<lbrakk> sound_B_refinement r \<rbrakk> \<Longrightarrow> concrete r \<preceq> abstract r"
+using assms unfolding sound_B_refinement_def simulated_def by auto
 
 text {*
   The identity refinement relates an LTS with itself; the invariant
@@ -105,10 +109,8 @@ text {*
 *}
 
 lemma refinement_compose_soundness:
-  assumes sound: "sound_B_refinement r"
-  and sound': "sound_B_refinement r'" 
-  and match: "concrete r = abstract r'"
-  shows "sound_B_refinement (refinement_compose r r')"
+  "\<lbrakk> sound_B_refinement r ; sound_B_refinement r'; concrete r = abstract r'\<rbrakk>
+     \<Longrightarrow> sound_B_refinement (refinement_compose r r')"
   using assms simulation_composition
   unfolding sound_B_refinement_def refinement_compose_def
   by fastforce
