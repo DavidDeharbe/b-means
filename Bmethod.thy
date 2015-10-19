@@ -61,12 +61,27 @@ definition simulation_B :: "'st rel \<Rightarrow> ('st, 'ev) LTS rel" where
    \<and> (\<forall>s s'. (s, s') \<in> r \<longrightarrow>
          accepted_events l s \<supseteq> accepted_events l' s' \<and>
          (\<forall>t \<in> outgoing_trans l s.
-             lbl t \<in> accepted_events l' s' \<longrightarrow> 
+(* sm: redundant by definition of accepted_events
+            lbl t \<in> accepted_events l' s' \<longrightarrow> 
+*)
              (\<exists>t' \<in> outgoing_trans l' s'. 
-                  src t' = s' \<and> lbl t' = lbl t \<and> (dst t, dst t') \<in> r))) }"
+                  lbl t' = lbl t \<and> (dst t, dst t') \<in> r))) }"
 
 definition simulated_B (infixl "\<preceq>B" 50)
   where "l \<preceq>B l' \<equiv> \<exists>r. (l,l') \<in> simulation_B r"
+
+lemma simulation_B_accepted:
+  assumes "(l,l') \<in> simulation_B r" and "(s,s') \<in> r"
+  shows   "accepted_events l' s' = accepted_events l s"
+proof -
+  have "accepted_events l' s' \<subseteq> accepted_events l s"
+    using assms unfolding simulation_B_def by blast
+  moreover
+  have "accepted_events l s \<subseteq> accepted_events l' s'"
+    using assms unfolding accepted_events_def simulation_B_def
+    by auto (metis image_eqI)
+  ultimately show ?thesis ..
+qed
 
 text {*
    We have that the composition of two simulation relations is
@@ -157,9 +172,11 @@ lemma sim_traces_B:
           acc \<supseteq> acc' \<and>
           (tr = tr' \<or> prefix tr' tr \<and> (\<exists> d \<in> acc'. d \<notin> acc \<and> prefixeq (tr' @ [d]) tr))"
 using assms unfolding simulated_B_def traces_B_def runs_def runsp_def
+(*
 sledgehammer[verbose, provers="cvc4 z3 e spass remote_vampire", timeout=300]
-
 by fastforce
+*)
+sorry
 
 (* 
   -------------------------------------------------------------------------
