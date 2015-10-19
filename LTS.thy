@@ -26,6 +26,29 @@ record ('st, 'ev) LTS =
   init :: "'st set" -- "set of initial states"
   trans :: "('st, 'ev) Tr set" -- "set of transitions"
 
+text {*
+   We first introduce auxiliary definitions for some useful
+   concepts. The function @{text "outgoing"}, given a LTS and a
+   state, returns the set of outgoing transitions in that state.  
+*}
+
+definition
+  outgoing :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> ('st, 'ev) Tr set"
+where
+  "outgoing l \<equiv> \<lambda>s. { t | t . t \<in> trans l \<and> src t = s}"
+
+text {*
+  The function @{text "accepted_events"}, given an LTS and a state,
+  returns the set of events that label the outgoing transitions in
+  that state. It corresponds to the operations and the corresponding
+  parameter valuations that are applicable in that state.  
+*}
+
+definition
+  accepted_events :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> 'ev set"
+where
+  "accepted_events l s \<equiv> lbl ` (outgoing l s)"
+
 text {* 
   The inductively defined set @{term "states m"} corresponds to the set of
   reachable states of a given LTS @{text m}. 
@@ -34,7 +57,7 @@ text {*
 inductive_set states :: "('st, 'ev) LTS \<Rightarrow> 'st set" 
   for l :: "('st, 'ev) LTS" where
   base[elim!]: "s \<in> init l \<Longrightarrow> s \<in> states l"
-| step[elim!]: "\<lbrakk> t \<in> trans l; src t \<in> states l \<rbrakk> \<Longrightarrow> dst t \<in> states l"
+| step[elim!]: "\<lbrakk>s \<in> states l; t \<in> outgoing l s\<rbrakk> \<Longrightarrow> dst t \<in> states l"
 
 inductive_cases base : "s \<in> states l"
 inductive_cases step : "dst t \<in> states l"
@@ -52,13 +75,13 @@ We first define a function @{text "successors"} that returns the set of successo
 given set @{text "S"} of states in a given LTS @{text "l"}: *}
 
 definition successors :: "('st, 'ev) LTS \<Rightarrow> 'st set \<Rightarrow> 'st set" where
-  "successors l S \<equiv> { dst t | t . t \<in> trans l \<and> src t \<in> S }"
+  "successors l S \<equiv> dst ` (UNION S (outgoing l))"
 
 text {* Next, we show that the successors of the reachable states are also reachable. *}
 
 lemma reachable_stable: "successors l (states l) \<subseteq> states l"
   unfolding successors_def by auto
-  
+
 text {* 
   The following lemma is at the basis of proofs of invariants, and more
   generally, safety properties. Any set @{text S} that contains all initial
@@ -78,6 +101,15 @@ text {*
 *}
 lemmas reachable_induct_predicate = states.induct
 text {* @{thm reachable_induct_predicate} *}
+
+text {*
+  The \emph{alphabet} of an LTS is defined as the set of labels
+  appearing at some reachable state.
+*}
+
+definition alphabet where
+  "alphabet l \<equiv> UNION (states l) (accepted_events l)"
+
 
 subsection {* Behavior *}
 
@@ -106,8 +138,8 @@ text {*
 inductive_set runs :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run set"  
   for l :: "('st, 'ev) LTS" where
   base: "[] \<in> runs l"
-| start: "\<lbrakk> t \<in> trans l; src t \<in> init l \<rbrakk> \<Longrightarrow> [t] \<in> runs l"
-| step: "\<lbrakk> t \<in> trans l; ts \<in> runs l; ts \<noteq> []; src t = dst (last ts) \<rbrakk> \<Longrightarrow> ts @ [t] \<in> runs l"
+| start: "\<lbrakk> s \<in> init l; t \<in> outgoing l s \<rbrakk> \<Longrightarrow> [t] \<in> runs l"
+| step: "\<lbrakk> ts \<in> runs l; ts \<noteq> []; t \<in> outgoing l (dst (last ts)) \<rbrakk> \<Longrightarrow> ts @ [t] \<in> runs l"
 
 inductive_cases empty_run : "[] \<in> runs l"
 inductive_cases one_step_run : "[t] \<in> runs l"
@@ -118,8 +150,47 @@ text {*
   the source state of the first transition is an initial state of @{text l}.
 *}
 
-lemma "ts \<in> runs l \<Longrightarrow> ts \<noteq> [] \<Longrightarrow> src (hd ts) \<in> init l"
-  by (induct rule: runs.induct, auto)
+lemma run_starts_initial: "ts \<in> runs l \<Longrightarrow> ts \<noteq> [] \<Longrightarrow> src (hd ts) \<in> init l"
+  by (induct rule: runs.induct, auto simp: outgoing_def)
+
+text {*
+  The set of runs is closed under prefixes.
+*}
+lemma prefix_is_run:
+  assumes "ts \<in> runs l"
+  shows "take n ts \<in> runs l"
+using assms proof (induct rule: runs.induct)
+  show "take n [] \<in> runs l" by (auto intro: runs.base)
+next
+  fix s t
+  assume s: "s \<in> init l" and t: "t \<in> outgoing l s"
+  show "take n [t] \<in> runs l"
+  proof (cases n)
+    assume "n = 0"
+    thus ?thesis by (auto intro: runs.base)
+  next
+    fix m
+    assume "n = Suc m"
+    hence "take n [t] = [t]" by simp
+    with s t show ?thesis by (auto intro: runs.start)
+  qed
+next
+  fix ts t
+  assume ts: "ts \<in> runs l" "ts \<noteq> []"
+     and t: "t \<in> outgoing l (dst (last ts))"
+     and ih: "take n ts \<in> runs l"
+  show "take n (ts @ [t]) \<in> runs l"
+  proof (cases "n \<le> length ts")
+    case True
+    hence "take n (ts @ [t]) = take n ts" by auto
+    with ih show ?thesis by simp
+  next
+    case False
+    hence "take n (ts @ [t]) = ts @ [t]" by auto
+    with ts t show ?thesis by (auto elim: runs.step)
+  qed
+qed
+
 
 subsubsection {* External behavior. *}
 

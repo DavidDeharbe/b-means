@@ -40,15 +40,14 @@ definition simulation :: "'st rel \<Rightarrow> ('st, 'ev) LTS rel" where
   "simulation r \<equiv> { (l,l') | l l'.
      (\<forall>s \<in> init l. \<exists>s' \<in> init l'. (s, s') \<in> r)
    \<and> (\<forall>s s'. (s, s') \<in> r \<longrightarrow>
-        (\<forall>t \<in> trans l. src t = s \<longrightarrow>
-          (\<exists>t' \<in> trans l'. src t' = s' \<and> (t,t') \<in> sim_transition r))) }"
+        (\<forall>t \<in> outgoing l s. \<exists>t' \<in> outgoing l' s'. (t,t') \<in> sim_transition r)) }"
 
 text {* 
   We say that @{text "l'"} simulates @{text l} if is there is a simulation between
   @{text l} and @{text "l'"}.
 *}
-definition simulated (infixl "\<preceq>" 50)
-where "(l \<preceq> l') \<equiv> \<exists>r. (l,l') \<in> simulation r"
+definition simulated (infixl "\<preceq>" 50) where
+  "l \<preceq> l' \<equiv> \<exists>r. (l,l') \<in> simulation r"
 
 subsection {* Properties *}
 
@@ -92,17 +91,6 @@ text {*
 definition sim_run :: "'st rel \<Rightarrow> ('st, 'ev) Run rel" where
   "sim_run r \<equiv> {(ts, ts') | ts ts'. 
                             list_all2 (\<lambda>t t'. (t,t') \<in> sim_transition r) ts ts'}"
-
-(* original definition -- note that the one above is weaker because it does
-   not enforce that the arguments are actually runs; however, it seems more
-   useful to separate the notions of runs and of simulation.
-inductive sim_run :: "'st rel \<Rightarrow> ('st, 'ev) Run \<Rightarrow> ('st, 'ev) Run \<Rightarrow> bool" where
-  "sim_run r [] []"
-| "sim_transition r t1 t2 \<Longrightarrow> sim_run r [t1] [t2]"
-| "ts1 \<noteq> [] \<and> sim_run r ts1 ts2 \<and> 
-   sim_transition r t1 t2 \<and> dst t1 = src(hd ts1) \<and> dst t2 = src(hd ts2) \<Longrightarrow> 
-   sim_run r (t1 # ts1) (t2 # ts2)"
-*)
 
 text {* 
   It is easy to see that two similar runs yield the same trace
@@ -184,24 +172,24 @@ proof -
   proof (induct)
     show "\<exists>ts' \<in> runs l'. ([], ts') \<in> sim_run r" by (auto intro: runs.base)
   next
-    fix t
-    assume "t \<in> trans l" "src t \<in> init l"
+    fix s t
+    assume "s \<in> init l" "t \<in> outgoing l s"
     with sim obtain s' t' where
-      "(src t, s') \<in> r" "s' \<in> init l'"
-      "t' \<in> trans l'" "src t' = s'" "(t,t') \<in> sim_transition r"
+      "s' \<in> init l'" "(s, s') \<in> r"
+      "t' \<in> outgoing l' s'" "(t,t') \<in> sim_transition r"
       unfolding simulation_def by blast
     thus "\<exists>ts'\<in>runs l'. ([t], ts') \<in> sim_run r"
       by (auto intro: runs.start)
   next
     fix t ts
-    assume t: "t \<in> trans l" "src t = dst (last ts)"
-       and ts: "ts \<in> runs l" "ts \<noteq> []"
+    assume ts: "ts \<in> runs l" "ts \<noteq> []"
+       and t: "t \<in> outgoing l (dst (last ts))"
        and ih: "\<exists>ts'\<in>runs l'. (ts, ts') \<in> sim_run r"
     from ih obtain ts' where ts': "ts' \<in> runs l'" "(ts,ts') \<in> sim_run r" by blast
     from ts ts' have "(dst (last ts), dst (last ts')) \<in> r"
       by (metis sim_run_last_state)
     with sim t obtain t' where
-      t': "t' \<in> trans l'" "src t' = dst (last ts')" "(t,t') \<in> sim_transition r"
+      t': "t' \<in> outgoing l' (dst (last ts'))" "(t,t') \<in> sim_transition r"
       unfolding simulation_def by blast
     from ts ts' have "ts' \<noteq> []" by (simp add: sim_run_empty_iff)
     with ts' t' have "ts' @ [t'] \<in> runs l'" by (blast intro: runs.step)

@@ -27,28 +27,7 @@ text {*
   would not be allowed in its abstract counterpart. In this theory,
   the notion of simulation is redefined (as @{text "simulation_B"}) to
   take this into account.
-
-   We first introduce auxiliary definitions for some useful
-   concepts. The function @{text "outgoing_trans"}, given a LTS and a
-   state, returns the set of outgoing transitions in that state.  
 *}
-
-definition
-  outgoing_trans :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> ('st, 'ev) Tr set"
-where
-  "outgoing_trans l s \<equiv> { t | t . t \<in> trans l \<and> src t = s}"
-
-text {*
-  The function @{text "accepted_events"}, given an LTS and a state,
-  returns the set of events that label the outgoing transitions in
-  that state. It corresponds to the operations and the corresponding
-  parameter valuations that are applicable in that state.  
-*}
-
-definition
-  accepted_events :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> 'ev set"
-where
-  "accepted_events l s \<equiv> lbl ` (outgoing_trans l s)"
 
 text {*
   We now provide the formalization of the concept of simulation
@@ -60,28 +39,13 @@ definition simulation_B :: "'st rel \<Rightarrow> ('st, 'ev) LTS rel" where
      (\<forall>s \<in> init l. \<exists>s' \<in> init l'. (s, s') \<in> r)
    \<and> (\<forall>s s'. (s, s') \<in> r \<longrightarrow>
          accepted_events l s \<supseteq> accepted_events l' s' \<and>
-         (\<forall>t \<in> outgoing_trans l s.
-(* sm: redundant by definition of accepted_events
+         (\<forall>t \<in> outgoing l s.
             lbl t \<in> accepted_events l' s' \<longrightarrow> 
-*)
-             (\<exists>t' \<in> outgoing_trans l' s'. 
+             (\<exists>t' \<in> outgoing l' s'. 
                   lbl t' = lbl t \<and> (dst t, dst t') \<in> r))) }"
 
 definition simulated_B (infixl "\<preceq>B" 50)
   where "l \<preceq>B l' \<equiv> \<exists>r. (l,l') \<in> simulation_B r"
-
-lemma simulation_B_accepted:
-  assumes "(l,l') \<in> simulation_B r" and "(s,s') \<in> r"
-  shows   "accepted_events l' s' = accepted_events l s"
-proof -
-  have "accepted_events l' s' \<subseteq> accepted_events l s"
-    using assms unfolding simulation_B_def by blast
-  moreover
-  have "accepted_events l s \<subseteq> accepted_events l' s'"
-    using assms unfolding accepted_events_def simulation_B_def
-    by auto (metis image_eqI)
-  ultimately show ?thesis ..
-qed
 
 text {*
    We have that the composition of two simulation relations is
@@ -101,11 +65,108 @@ lemma simulates_B_transitive:
   unfolding simulated_B_def
   by blast
 
+text {*
+  The following lemma relates runs of a simulating LTS with those
+  of a simulated one. It differs from theorem @{text "sim_run"}
+  because in B the simulating system may take extra steps. We
+  define a suitable predicate on runs of two systems @{text "l"}
+  and @{text "l'"} related by @{text "r"}.
+*}
 
-definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
-"run_accepted_events l r \<equiv> 
-   if r = [] then UNION (init l) (accepted_events l)
-   else accepted_events l (dst (last r))"
+definition maximal_similar_runs where
+  "maximal_similar_runs r l l' run run' \<equiv> 
+     length run' \<le> length run
+   \<and> (\<forall>i < length run'. (run!i, run'!i) \<in> sim_transition r)
+   \<and> (length run' < length run \<longrightarrow> 
+        (if run' = [] 
+         then \<forall>s' \<in> init l'. (src (hd run), s') \<in> r \<longrightarrow> lbl (hd run) \<notin> accepted_events l' s'
+         else lbl (run!length run') \<notin> accepted_events l' (dst (last run'))))"
+
+lemma simulation_B_maximal_similar_runs:
+  assumes l: "(l,l') \<in> simulation_B r"
+      and run: "run \<in> runs l"
+  obtains run' where "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
+proof -
+  from run 
+  have "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' run run'"
+  proof (induct)
+    have "maximal_similar_runs r l l' [] []"
+      by (simp add: maximal_similar_runs_def)
+    thus "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' [] run'"
+      by (auto intro: runs.base)
+  next
+    fix s t
+    assume s: "s \<in> init l" and t: "t \<in> outgoing l s"
+    show "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' [t] run'"
+    proof (cases "\<exists>s' \<in> init l'. (s,s') \<in> r \<and> lbl t \<in> accepted_events l' s'")
+      case True
+      then obtain s' where 
+        s': "s' \<in> init l'" "(s,s') \<in> r" "lbl t \<in> accepted_events l' s'"
+        by blast
+      with l t obtain t' where
+        t': "t' \<in> outgoing l' s'" "lbl t' = lbl t" "(dst t, dst t') \<in> r"
+        unfolding simulation_B_def by force
+      from s' t t' have "maximal_similar_runs r l l' [t] [t']"
+        unfolding sim_transition_def outgoing_def maximal_similar_runs_def 
+        by auto
+      moreover
+      from s' t' have "[t'] \<in> runs l'" by (auto intro: runs.start)
+      ultimately show ?thesis by blast
+    next
+      case False
+      with t have "maximal_similar_runs r l l' [t] []"
+        unfolding maximal_similar_runs_def outgoing_def by auto
+      thus ?thesis by (auto intro: runs.base)
+    qed
+  next
+    fix ts t
+    assume ts: "ts \<in> runs l" "ts \<noteq> []"
+       and t: "t \<in> outgoing l (dst (last ts))"
+       and ih: "\<exists>ts' \<in> runs l'. maximal_similar_runs r l l' ts ts'"
+    from ih obtain ts' where
+      ts': "ts' \<in> runs l'" "maximal_similar_runs r l l' ts ts'"
+      by blast
+    show "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' (ts @ [t]) run'"
+    proof (cases "length ts' < length ts")
+      case True
+      with ts ts' have "maximal_similar_runs r l l' (ts @ [t]) ts'"
+        unfolding maximal_similar_runs_def by (simp add: nth_append)
+      with ts' show ?thesis by blast
+    next
+      case False
+      with ts' ts have eq: "length ts' = length ts" "ts' \<noteq> []"
+        unfolding maximal_similar_runs_def by auto
+      show ?thesis
+      proof (cases "lbl t \<in> accepted_events l' (dst (last ts'))")
+        case False
+        with ts ts' eq have "maximal_similar_runs r l l' (ts @ [t]) ts'"
+          unfolding maximal_similar_runs_def by (auto simp: nth_append)
+        with ts' show ?thesis by blast
+      next
+        case True
+        from ts eq 
+        have dst: "dst (last ts') = dst (ts'!(length ts' - 1))" "dst (last ts) = dst (ts!(length ts' - 1))"
+          by (auto simp: last_conv_nth)
+        from ts' ts eq 
+        have rel: "(dst (ts!(length ts' - 1)), dst (ts'!(length ts' - 1))) \<in> r"
+          unfolding maximal_similar_runs_def sim_transition_def by auto
+        with True ts eq l t dst obtain t' where
+          t': "t' \<in> outgoing l' (dst (ts'!(length ts' - 1)))" "lbl t' = lbl t" "(dst t, dst t') \<in> r"
+          unfolding simulation_B_def by (force simp: Pair_inject)
+        with t dst rel have "(t, t') \<in> sim_transition r"
+          unfolding sim_transition_def outgoing_def by simp
+        with ts' eq have "maximal_similar_runs r l l' (ts@[t]) (ts'@[t'])"
+          unfolding maximal_similar_runs_def by (simp add: nth_append)
+        moreover
+        from ts' t' dst eq have "ts' @ [t'] \<in> runs l'"
+          by (auto intro: runs.step)
+        ultimately
+        show ?thesis ..
+      qed
+    qed
+  qed
+  with that show ?thesis by blast
+qed
 
 text {* 
   The external, or observable, behavior of an LTS is an expression of
@@ -117,6 +178,14 @@ text {*
   The type corresponding to such observations is defined as follows:
 *}
 type_synonym 'ev TrB = "'ev list * 'ev set"
+
+(* sm: in the following definition, changed UNION to INTER in order to
+   prove lemma sim_traces_B -- the definition returns the set of
+   events that are accepted in every initial state. *)
+definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
+"run_accepted_events l r \<equiv> 
+   if r = [] then INTER (init l) (accepted_events l)
+   else accepted_events l (dst (last r))"
 
 text {*
   Next, the function @{text run_trace} maps observations of internal
@@ -139,44 +208,105 @@ text {*
   may not, be useful to prove more interesting properties.
 *}
 lemma run_trace_empty_inv:
-  "([], UNION (init l) (accepted_events l)) \<in> traces_B l"
+  "([], INTER (init l) (accepted_events l)) \<in> traces_B l"
 unfolding traces_B_def
 by (simp add: image_iff run_accepted_events_def run_trace_def runs.base)
 
-lemma run_append:
-assumes
-   "r \<in> runs l" and "r \<noteq> []" and 
-   "t \<in> trans l" and "src t = dst (last r)"
-shows
-   "r @ [t] \<in> runs l"
-using assms
-by (simp add: runs.step)
-
 lemma run_trace_inv:
-assumes
-   "(tr, acc) \<in> traces_B l" and "r \<noteq> []" and "acc \<noteq> {}" and
-   "t \<in> trans l" and "src t = dst (last tr)" and "lbl t \<in> acc"
-shows
-   "(tr @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
-(*sledgehammer[verbose, provers="cvc4 z3 e spass remote_vampire", timeout=300]*)
-sorry
+assumes "run \<in> runs l" and "run \<noteq> []" and "t \<in> outgoing l (dst (last run))"
+shows "(map lbl run @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
+proof -
+  from assms have "run @ [t] \<in> runs l" by (rule runs.step)
+  moreover
+  have "run_trace l (run @ [t]) = (map lbl run @ [lbl t], accepted_events l (dst t))"
+    unfolding run_trace_def run_accepted_events_def by auto
+  ultimately show ?thesis
+    unfolding traces_B_def using image_iff by fastforce
+qed
+
+lemma sim_init_accepted:
+  assumes "l \<preceq>B l'"
+  shows "INTER (init l') (accepted_events l') \<subseteq> INTER (init l) (accepted_events l)"
+  using assms unfolding simulated_B_def simulation_B_def by blast
 
 text {*
-  It would be interesting to come up with a proof of the following theorem. It
-  establishes a property on the traces of between LTSes that relate through
-  the (B inspired notion of) simulation.
+  The following theorem establishes a property on the traces of LTSes
+  that relate through the (B inspired notion of) simulation.
 *}
 lemma sim_traces_B:
   assumes sim: "l \<preceq>B l'" and tr: "(tr, acc) \<in> traces_B l"
-  shows "\<exists> (tr', acc') \<in> traces_B l' .
-          acc \<supseteq> acc' \<and>
-          (tr = tr' \<or> prefix tr' tr \<and> (\<exists> d \<in> acc'. d \<notin> acc \<and> prefixeq (tr' @ [d]) tr))"
-using assms unfolding simulated_B_def traces_B_def runs_def runsp_def
-(*
-sledgehammer[verbose, provers="cvc4 z3 e spass remote_vampire", timeout=300]
-by fastforce
-*)
-sorry
+  shows "\<exists> (tr', acc') \<in> traces_B l'.
+            length tr' \<le> length tr
+          \<and> (\<forall>i<length tr'. tr'!i = tr!i)
+          \<and> (if length tr' < length tr
+             then tr!(length tr') \<notin> acc'
+             else acc' \<subseteq> acc)"
+    (is "\<exists>(tr',acc') \<in> _. ?P tr' acc'")
+proof -
+  from sim obtain r where r: "(l,l') \<in> simulation_B r"
+    by (auto simp: simulated_B_def)
+  from tr obtain run where
+    run: "run \<in> runs l" "tr = map lbl run" "acc = run_accepted_events l run"
+    by (auto simp: traces_B_def run_trace_def)
+  with r obtain run' where
+    run': "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
+    by (blast dest: simulation_B_maximal_similar_runs)
+  let ?tr' = "map lbl run'"
+  let ?acc' = "run_accepted_events l' run'"
+  from run' have "(?tr',?acc') \<in> traces_B l'"
+    by (auto simp: traces_B_def run_trace_def)
+  moreover
+  from run' run have "length ?tr' \<le> length tr" "\<forall>i < length ?tr'. ?tr'!i = tr!i"
+    unfolding maximal_similar_runs_def sim_transition_def by auto
+  moreover
+  have "if length ?tr' < length tr then tr!(length ?tr') \<notin> ?acc' else ?acc' \<subseteq> acc"
+  proof (cases "length ?tr' < length tr")
+    case True
+    with run have len: "length run' < length run" by simp
+    have "tr!(length ?tr') \<notin> ?acc'"
+    proof (cases "run' = []")
+      case True
+      from len run have "src (hd run) \<in> init l"
+        by (auto intro: run_starts_initial)
+      with r obtain s' where s': "s' \<in> init l'" "(src (hd run), s') \<in> r"
+        unfolding simulation_B_def by blast
+      with len run' True have "lbl (hd run) \<notin> accepted_events l' s'"
+        unfolding maximal_similar_runs_def by auto
+      with s' True have "lbl (hd run) \<notin> ?acc'"
+        unfolding run_accepted_events_def by auto
+      with run True len show ?thesis 
+        by (auto simp: hd_conv_nth)
+    next
+      case False
+      with len run' run show ?thesis
+        unfolding maximal_similar_runs_def run_accepted_events_def by auto
+    qed
+    with True show ?thesis by simp
+  next
+    case False
+    with run' run have len: "length run' = length run"
+      unfolding maximal_similar_runs_def by simp
+    have "?acc' \<subseteq> acc"
+    proof (cases "length run = 0")
+      case True
+      with len have "run = []" "run' = []" by auto
+      with run sim_init_accepted[OF sim] show ?thesis
+        by (simp add: run_accepted_events_def)
+    next
+      case False
+      with len run' have "(last run, last run') \<in> sim_transition r"
+        unfolding maximal_similar_runs_def
+        by (metis One_nat_def diff_less last_conv_nth length_0_conv length_greater_0_conv zero_less_Suc)
+      hence "(dst (last run), dst (last run')) \<in> r"
+        by (simp add: sim_transition_def)
+      with r run False len show ?thesis
+        unfolding simulation_B_def run_accepted_events_def by auto
+    qed
+    with False show ?thesis by simp
+  qed
+  ultimately show ?thesis by blast
+qed
+
 
 (* 
   -------------------------------------------------------------------------
@@ -216,7 +346,8 @@ theorem machine_po:
   assumes po_init: "\<And>s. s \<in> init (lts m) \<Longrightarrow> invariant m s"
   and po_step: "\<And>t. \<lbrakk>t \<in> trans (lts m); invariant m (src t)\<rbrakk> \<Longrightarrow> invariant m (dst t)"
   shows "sound_B_machine m"
-  unfolding sound_B_machine_def using assms by (auto elim: states.induct)
+  unfolding sound_B_machine_def using assms 
+  by (auto elim: states.induct simp: outgoing_def)
 
 
 section {* B refinement *}
@@ -258,7 +389,7 @@ text {*
 lemma refinement_sim: 
   assumes "sound_B_refinement r"
   shows "concrete r \<preceq>B abstract r"
-  using assms unfolding sound_B_refinement_def is_simulated_by_B_def by auto
+  using assms unfolding sound_B_refinement_def simulated_B_def by auto
 
 text {*
   The identity refinement relates an LTS with itself; the invariant
@@ -274,7 +405,7 @@ text {* The identity refinement is sound. *}
 
 lemma "sound_B_refinement (refinement_id l)"
   unfolding refinement_id_def sound_B_refinement_def simulation_B_def 
-            sim_transition_def outgoing_trans_def
+            sim_transition_def outgoing_def
   by auto
 
 text {* 
