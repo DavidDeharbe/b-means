@@ -4,6 +4,12 @@ imports Simulation
 
 begin
 
+text {* A useful rule for proving conditional statements. *}
+lemma bool_ifI [intro!]:
+  assumes "P \<Longrightarrow> Q" and "~P \<Longrightarrow> R"
+  shows "if P then Q else R"
+  using assms by auto
+
 text {* 
   In theory @{text "Simulation"}, we consider that when a LTS $l$ is
   simulated by $l'$, then for a transition $t$ in $l$, on some event
@@ -169,31 +175,31 @@ proof -
 qed
 
 text {* 
-  The external, or observable, behavior of an LTS is an expression of
-  the events to which the LTS responds. The observable behavior is
-  then a pair composed of the list of the successive events found
-  along a \emph{run} and the set of events that are accepted when the
-  run has reached the last state.
+  The external, or observable, behavior of an LTS is expressed in terms
+  of the events to which the LTS responds. Similar to the refusals semantics
+  of CSP, we define an external behavior as a pair whose first component is
+  a finite sequence of events that occurred in a run, and whose second
+  component is the set of events that are enabled when the run has been
+  executed by the LTS.
 
   The type corresponding to such observations is defined as follows:
 *}
 type_synonym 'ev TrB = "'ev list * 'ev set"
 
-(* sm: in the following definition, changed UNION to INTER in order to
-   prove lemma sim_traces_B -- the definition returns the set of
-   events that are accepted in every initial state. *)
+(* The following operator is intended for non-empty runs only.
 definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
 "run_accepted_events l r \<equiv> 
    if r = [] then INTER (init l) (accepted_events l)
    else accepted_events l (dst (last r))"
-
 text {*
-  Next, the function @{text run_trace} maps observations of internal
-  behavior to observations of external behavior.
+  The function @{text run_trace} maps observations of internal
+  behavior to observations of external behavior. It is intended for
+  non-empty runs only.
 *}
 
 definition run_trace :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev TrB" where 
-  "run_trace l r \<equiv> (map lbl r, run_accepted_events l r)"
+  "run_trace l r \<equiv> (map lbl r, accepted_events l (dst (last r)))"
+*)
 
 text {*
   The following function returns the external behavior of an LTS, as
@@ -201,33 +207,27 @@ text {*
 *}
 
 definition traces_B :: "('st, 'ev) LTS \<Rightarrow> 'ev TrB set" where
-  "traces_B l \<equiv> (run_trace l) ` (runs l)"
+  "traces_B l \<equiv> 
+     { ([], accepted_events l s) | s . s \<in> init l }
+   \<union> { (map lbl r, accepted_events l (dst (last r))) | r . r \<in> runs l - {[]} }"
 
 text {*
   At that point, we propose a few lemmas, without proofs. They may, or
   may not, be useful to prove more interesting properties.
 *}
-lemma run_trace_empty_inv:
-  "([], INTER (init l) (accepted_events l)) \<in> traces_B l"
-unfolding traces_B_def
-by (simp add: image_iff run_accepted_events_def run_trace_def runs.base)
+lemma traces_B_iff:
+  "(tr, acc) \<in> traces_B l \<longleftrightarrow>
+   (if tr = [] then \<exists>s \<in> init l. acc = accepted_events l s
+    else \<exists>r \<in> runs l. r \<noteq> [] \<and> tr = map lbl r \<and> acc = accepted_events l (dst (last r)))"
+  unfolding traces_B_def by auto
 
 lemma run_trace_inv:
-assumes "run \<in> runs l" and "run \<noteq> []" and "t \<in> outgoing l (dst (last run))"
-shows "(map lbl run @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
+  assumes "run \<in> runs l" and "run \<noteq> []" and "t \<in> outgoing l (dst (last run))"
+  shows "(map lbl run @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
 proof -
   from assms have "run @ [t] \<in> runs l" by (rule runs.step)
-  moreover
-  have "run_trace l (run @ [t]) = (map lbl run @ [lbl t], accepted_events l (dst t))"
-    unfolding run_trace_def run_accepted_events_def by auto
-  ultimately show ?thesis
-    unfolding traces_B_def using image_iff by fastforce
+  thus ?thesis unfolding traces_B_def by fastforce
 qed
-
-lemma sim_init_accepted:
-  assumes "l \<preceq>B l'"
-  shows "INTER (init l') (accepted_events l') \<subseteq> INTER (init l) (accepted_events l)"
-  using assms unfolding simulated_B_def simulation_B_def by blast
 
 text {*
   The following theorem establishes a property on the traces of LTSes
@@ -245,66 +245,70 @@ lemma sim_traces_B:
 proof -
   from sim obtain r where r: "(l,l') \<in> simulation_B r"
     by (auto simp: simulated_B_def)
-  from tr obtain run where
-    run: "run \<in> runs l" "tr = map lbl run" "acc = run_accepted_events l run"
-    by (auto simp: traces_B_def run_trace_def)
-  with r obtain run' where
-    run': "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
-    by (blast dest: simulation_B_maximal_similar_runs)
-  let ?tr' = "map lbl run'"
-  let ?acc' = "run_accepted_events l' run'"
-  from run' have "(?tr',?acc') \<in> traces_B l'"
-    by (auto simp: traces_B_def run_trace_def)
-  moreover
-  from run' run have "length ?tr' \<le> length tr" "\<forall>i < length ?tr'. ?tr'!i = tr!i"
-    unfolding maximal_similar_runs_def sim_transition_def by auto
-  moreover
-  have "if length ?tr' < length tr then tr!(length ?tr') \<notin> ?acc' else ?acc' \<subseteq> acc"
-  proof (cases "length ?tr' < length tr")
+  show ?thesis
+  proof (cases "tr = []")
     case True
-    with run have len: "length run' < length run" by simp
-    have "tr!(length ?tr') \<notin> ?acc'"
-    proof (cases "run' = []")
-      case True
-      from len run have "src (hd run) \<in> init l"
-        by (auto intro: run_starts_initial)
-      with r obtain s' where s': "s' \<in> init l'" "(src (hd run), s') \<in> r"
-        unfolding simulation_B_def by blast
-      with len run' True have "lbl (hd run) \<notin> accepted_events l' s'"
-        unfolding maximal_similar_runs_def by auto
-      with s' True have "lbl (hd run) \<notin> ?acc'"
-        unfolding run_accepted_events_def by auto
-      with run True len show ?thesis 
-        by (auto simp: hd_conv_nth)
-    next
-      case False
-      with len run' run show ?thesis
-        unfolding maximal_similar_runs_def run_accepted_events_def by auto
-    qed
-    with True show ?thesis by simp
+    with tr[unfolded traces_B_iff] obtain s where
+      s: "s \<in> init l" "acc = accepted_events l s" by auto
+    with r obtain s' where
+      s': "s' \<in> init l'" "(s,s') \<in> r" "accepted_events l' s' \<subseteq> acc"
+      unfolding simulation_B_def by auto
+    with True have "?P [] (accepted_events l' s')" by simp
+    moreover
+    from s' have "([], accepted_events l' s') \<in> traces_B l'"
+      unfolding traces_B_iff by auto
+    ultimately
+    show ?thesis by blast
   next
     case False
-    with run' run have len: "length run' = length run"
-      unfolding maximal_similar_runs_def by simp
-    have "?acc' \<subseteq> acc"
-    proof (cases "length run = 0")
+    with tr[unfolded traces_B_iff] obtain run where
+      run: "run \<in> runs l" "run \<noteq> []" "tr = map lbl run" "acc = accepted_events l (dst (last run))"
+      by auto
+    with r obtain run' where
+      run': "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
+      by (blast elim: simulation_B_maximal_similar_runs)
+    let ?tr' = "map lbl run'"
+    from run run' have 1: "length ?tr' \<le> length tr" "\<forall>i<length ?tr'. ?tr'!i = tr!i"
+      unfolding maximal_similar_runs_def sim_transition_def by auto
+    have "\<exists>acc'. (?tr', acc') \<in> traces_B l'
+               \<and> (if length ?tr' < length tr then tr!(length ?tr') \<notin> acc' else acc' \<subseteq> acc)"
+    proof (cases "run' = []")
       case True
-      with len have "run = []" "run' = []" by auto
-      with run sim_init_accepted[OF sim] show ?thesis
-        by (simp add: run_accepted_events_def)
+      with run have len: "length run' < length run" "length ?tr' < length tr"  by auto
+      from run have "src (hd run) \<in> init l"  by (auto intro: run_starts_initial)
+      with r obtain s' where s': "s' \<in> init l'" "(src (hd run), s') \<in> r"
+        unfolding simulation_B_def by blast
+      let ?acc' = "accepted_events l' s'"
+      from s' True have "(?tr', ?acc') \<in> traces_B l'"
+        unfolding traces_B_iff by auto
+      moreover
+      from s' len run' True have "lbl (hd run) \<notin> ?acc'"
+        unfolding maximal_similar_runs_def by auto
+      ultimately show ?thesis
+        using True len run by (auto simp: hd_conv_nth)
     next
       case False
-      with len run' have "(last run, last run') \<in> sim_transition r"
-        unfolding maximal_similar_runs_def
-        by (metis One_nat_def diff_less last_conv_nth length_0_conv length_greater_0_conv zero_less_Suc)
-      hence "(dst (last run), dst (last run')) \<in> r"
-        by (simp add: sim_transition_def)
-      with r run False len show ?thesis
-        unfolding simulation_B_def run_accepted_events_def by auto
+      let ?acc' = "accepted_events l' (dst (last run'))"
+      from run' False have "(?tr', ?acc') \<in> traces_B l'"
+        unfolding traces_B_iff by auto
+      moreover
+      have "if length ?tr' < length tr then tr!(length ?tr') \<notin> ?acc' else ?acc' \<subseteq> acc"
+      proof
+        assume "length ?tr' < length tr"
+        with run run' False show "tr!(length ?tr') \<notin> ?acc'"
+          unfolding maximal_similar_runs_def by auto
+      next
+        assume "\<not>(length ?tr' < length tr)"
+        with 1 have len: "length ?tr' = length tr" by simp
+        with run run' False have "(last run, last run') \<in> sim_transition r"
+          unfolding maximal_similar_runs_def by (auto simp: last_conv_nth)
+        with r run show "?acc' \<subseteq> acc"
+          unfolding simulation_B_def sim_transition_def by auto
+      qed
+      ultimately show ?thesis by blast
     qed
-    with False show ?thesis by simp
+    with 1 show ?thesis by blast
   qed
-  ultimately show ?thesis by blast
 qed
 
 
