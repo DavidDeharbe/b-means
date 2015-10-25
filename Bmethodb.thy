@@ -1,14 +1,15 @@
-theory Bmethod
-
-imports Simulation
+theory Bmethodb
+imports Simulationb
 
 begin
 
+(**
 text {* A useful rule for proving conditional statements. *}
 lemma bool_ifI [intro!]:
   assumes "P \<Longrightarrow> Q" and "~P \<Longrightarrow> R"
   shows "if P then Q else R"
   using assms by auto
+**)
 
 text {* 
   In theory @{text "Simulation"}, we consider that when a LTS $l$ is
@@ -81,93 +82,68 @@ text {*
 
 definition maximal_similar_runs where
   "maximal_similar_runs r l l' run run' \<equiv> 
-     length run' \<le> length run
-   \<and> (\<forall>i < length run'. (run!i, run'!i) \<in> sim_transition r)
-   \<and> (length run' < length run \<longrightarrow> 
-        (if run' = [] 
-         then \<forall>s' \<in> init l'. (src (hd run), s') \<in> r \<longrightarrow> lbl (hd run) \<notin> accepted_events l' s'
-         else lbl (run!length run') \<notin> accepted_events l' (dst (last run'))))"
+     length (trns run') \<le> length (trns run)
+   \<and> (\<forall>i < length (trns run'). 
+           (fst (trns run ! i), fst (trns run' ! i)) \<in> r
+         \<and> snd (trns run ! i) = snd (trns run' ! i))
+   \<and> (if length (trns run') = length (trns run)
+      then (fins run, fins run') \<in> r
+      else snd (trns run ! (length (trns run'))) \<notin> accepted_events l' (fins run'))"
 
 lemma simulation_B_maximal_similar_runs:
-  assumes l: "(l,l') \<in> simulation_B r"
+  assumes sim: "(l,l') \<in> simulation_B r"
       and run: "run \<in> runs l"
   obtains run' where "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
 proof -
-  from run 
-  have "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' run run'"
+  from run have "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' run run'"
   proof (induct)
-    have "maximal_similar_runs r l l' [] []"
-      by (simp add: maximal_similar_runs_def)
-    thus "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' [] run'"
-      by (auto intro: runs.base)
+    fix s
+    assume "s \<in> init l"
+    with sim obtain s' where s': "s' \<in> init l'" "(s,s') \<in> r"
+      unfolding simulation_B_def by blast
+    hence "\<lparr>trns = [], fins = s'\<rparr> \<in> runs l'" by (blast intro: runs.start)
+    with s'
+    show "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' \<lparr>trns = [], fins = s\<rparr> run'"
+      unfolding maximal_similar_runs_def by force
   next
-    fix s t
-    assume s: "s \<in> init l" and t: "t \<in> outgoing l s"
-    show "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' [t] run'"
-    proof (cases "\<exists>s' \<in> init l'. (s,s') \<in> r \<and> lbl t \<in> accepted_events l' s'")
-      case True
-      then obtain s' where 
-        s': "s' \<in> init l'" "(s,s') \<in> r" "lbl t \<in> accepted_events l' s'"
-        by blast
-      with l t obtain t' where
-        t': "t' \<in> outgoing l' s'" "lbl t' = lbl t" "(dst t, dst t') \<in> r"
-        unfolding simulation_B_def by force
-      from s' t t' have "maximal_similar_runs r l l' [t] [t']"
-        unfolding sim_transition_def outgoing_def maximal_similar_runs_def 
-        by auto
-      moreover
-      from s' t' have "[t'] \<in> runs l'" by (auto intro: runs.start)
-      ultimately show ?thesis by blast
-    next
-      case False
-      with t have "maximal_similar_runs r l l' [t] []"
-        unfolding maximal_similar_runs_def outgoing_def by auto
-      thus ?thesis by (auto intro: runs.base)
-    qed
-  next
-    fix ts t
-    assume ts: "ts \<in> runs l" "ts \<noteq> []"
-       and t: "t \<in> outgoing l (dst (last ts))"
-       and ih: "\<exists>ts' \<in> runs l'. maximal_similar_runs r l l' ts ts'"
-    from ih obtain ts' where
-      ts': "ts' \<in> runs l'" "maximal_similar_runs r l l' ts ts'"
+    fix rn t
+    assume rn: "rn \<in> runs l" and t: "t \<in> outgoing l (fins rn)"
+       and ih: "\<exists>rn' \<in> runs l'. maximal_similar_runs r l l' rn rn'"
+    then obtain rn' where
+      rn': "rn' \<in> runs l'" "maximal_similar_runs r l l' rn rn'"
       by blast
-    show "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' (ts @ [t]) run'"
-    proof (cases "length ts' < length ts")
-      case True
-      with ts ts' have "maximal_similar_runs r l l' (ts @ [t]) ts'"
-        unfolding maximal_similar_runs_def by (simp add: nth_append)
-      with ts' show ?thesis by blast
+    let ?run = "append_tr rn t"
+    show "\<exists>run' \<in> runs l'. maximal_similar_runs r l l' ?run run'"
+    proof (cases "length (trns rn') < length (trns rn)")
+      case True with rn' show ?thesis
+        unfolding maximal_similar_runs_def
+        by (auto simp: append_tr_def nth_append)
     next
       case False
-      with ts' ts have eq: "length ts' = length ts" "ts' \<noteq> []"
-        unfolding maximal_similar_runs_def by auto
+      with rn' have len: "length (trns rn') = length (trns rn)"
+        unfolding maximal_similar_runs_def by simp
+      with rn' have fins: "(fins rn, fins rn') \<in> r"
+        unfolding maximal_similar_runs_def by simp
       show ?thesis
-      proof (cases "lbl t \<in> accepted_events l' (dst (last ts'))")
-        case False
-        with ts ts' eq have "maximal_similar_runs r l l' (ts @ [t]) ts'"
-          unfolding maximal_similar_runs_def by (auto simp: nth_append)
-        with ts' show ?thesis by blast
-      next
+      proof (cases "lbl t \<in> accepted_events l' (fins rn')")
         case True
-        from ts eq 
-        have dst: "dst (last ts') = dst (ts'!(length ts' - 1))" "dst (last ts) = dst (ts!(length ts' - 1))"
-          by (auto simp: last_conv_nth)
-        from ts' ts eq 
-        have rel: "(dst (ts!(length ts' - 1)), dst (ts'!(length ts' - 1))) \<in> r"
-          unfolding maximal_similar_runs_def sim_transition_def by auto
-        with True ts eq l t dst obtain t' where
-          t': "t' \<in> outgoing l' (dst (ts'!(length ts' - 1)))" "lbl t' = lbl t" "(dst t, dst t') \<in> r"
-          unfolding simulation_B_def by (force simp: Pair_inject)
-        with t dst rel have "(t, t') \<in> sim_transition r"
-          unfolding sim_transition_def outgoing_def by simp
-        with ts' eq have "maximal_similar_runs r l l' (ts@[t]) (ts'@[t'])"
-          unfolding maximal_similar_runs_def by (simp add: nth_append)
+        with sim fins t obtain t' where 
+          t': "t' \<in> outgoing l' (fins rn')" "lbl t' = lbl t" "(dst t, dst t') \<in> r"
+          unfolding simulation_B_def by blast
+        let ?run' = "append_tr rn' t'"
+        from `rn' \<in> runs l'` `t' \<in> outgoing l' (fins rn')`
+        have "?run' \<in> runs l'" by (rule runs.step)
         moreover
-        from ts' t' dst eq have "ts' @ [t'] \<in> runs l'"
-          by (auto intro: runs.step)
-        ultimately
-        show ?thesis ..
+        from rn' t' len have "maximal_similar_runs r l l' ?run ?run'"
+          unfolding maximal_similar_runs_def
+          by (auto simp: append_tr_def nth_append)
+        ultimately show ?thesis ..
+      next
+        case False
+        with rn' len have "maximal_similar_runs r l l' ?run rn'"
+          unfolding maximal_similar_runs_def
+          by (auto simp: append_tr_def nth_append)
+        with `rn' \<in> runs l'` show ?thesis ..
       qed
     qed
   qed
@@ -186,43 +162,22 @@ text {*
 *}
 type_synonym 'ev TrB = "'ev list * 'ev set"
 
-(* The following operator is intended for non-empty runs only.
-definition run_accepted_events :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev set" where 
-"run_accepted_events l r \<equiv> 
-   if r = [] then INTER (init l) (accepted_events l)
-   else accepted_events l (dst (last r))"
-text {*
-  The function @{text run_trace} maps observations of internal
-  behavior to observations of external behavior. It is intended for
-  non-empty runs only.
-*}
-
-definition run_trace :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run \<Rightarrow> 'ev TrB" where 
-  "run_trace l r \<equiv> (map lbl r, accepted_events l (dst (last r)))"
-*)
-
-text {*
-  The following function returns the external behavior of an LTS, as
-  the set of its traces.
-*}
-
 definition traces_B :: "('st, 'ev) LTS \<Rightarrow> 'ev TrB set" where
-  "traces_B l \<equiv> 
-     { ([], accepted_events l s) | s . s \<in> init l }
-   \<union> { (map lbl r, accepted_events l (dst (last r))) | r . r \<in> runs l - {[]} }"
-
-lemma traces_B_iff:
-  "(tr, acc) \<in> traces_B l \<longleftrightarrow>
-   (if tr = [] then \<exists>s \<in> init l. acc = accepted_events l s
-    else \<exists>r \<in> runs l. r \<noteq> [] \<and> tr = map lbl r \<and> acc = accepted_events l (dst (last r)))"
-  unfolding traces_B_def by auto
+  "traces_B l \<equiv> { (trace_of r, accepted_events l (fins r)) | r . r \<in> runs l }"
 
 lemma run_trace_inv:
-  assumes "run \<in> runs l" and "run \<noteq> []" and "t \<in> outgoing l (dst (last run))"
-  shows "(map lbl run @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
+  assumes "run \<in> runs l" and "t \<in> outgoing l (fins run)"
+  shows "(trace_of run @ [lbl t], accepted_events l (dst t)) \<in> traces_B l"
 proof -
-  from assms have "run @ [t] \<in> runs l" by (rule runs.step)
-  thus ?thesis unfolding traces_B_def by fastforce
+  from assms have "append_tr run t \<in> runs l" by (rule runs.step)
+  moreover
+  have "trace_of run @ [lbl t] = trace_of (append_tr run t)"
+    unfolding trace_of_def append_tr_def by simp
+  moreover
+  have "fins (append_tr run t) = dst t"
+    unfolding append_tr_def by simp
+  ultimately show ?thesis
+    unfolding traces_B_def by auto
 qed
 
 text {*
@@ -231,82 +186,31 @@ text {*
 *}
 lemma sim_traces_B:
   assumes sim: "l \<preceq>B l'" and tr: "(tr, acc) \<in> traces_B l"
-  shows "\<exists> (tr', acc') \<in> traces_B l'.
-            length tr' \<le> length tr
-          \<and> (\<forall>i<length tr'. tr'!i = tr!i)
-          \<and> (if length tr' < length tr
-             then tr!(length tr') \<notin> acc'
-             else acc' \<subseteq> acc)"
-    (is "\<exists>(tr',acc') \<in> _. ?P tr' acc'")
+  obtains tr' acc' where
+    "(tr', acc') \<in> traces_B l'" "length tr' \<le> length tr"
+    "\<forall>i < length tr'. tr'!i = tr!i"
+    "if length tr' = length tr then acc' \<subseteq> acc else tr ! (length tr') \<notin> acc'"
 proof -
   from sim obtain r where r: "(l,l') \<in> simulation_B r"
     by (auto simp: simulated_B_def)
-  show ?thesis
-  proof (cases "tr = []")
-    case True
-    with tr[unfolded traces_B_iff] obtain s where
-      s: "s \<in> init l" "acc = accepted_events l s" by auto
-    with r obtain s' where
-      s': "s' \<in> init l'" "(s,s') \<in> r" "accepted_events l' s' \<subseteq> acc"
-      unfolding simulation_B_def by auto
-    with True have "?P [] (accepted_events l' s')" by simp
-    moreover
-    from s' have "([], accepted_events l' s') \<in> traces_B l'"
-      unfolding traces_B_iff by auto
-    ultimately
-    show ?thesis by blast
-  next
-    case False
-    with tr[unfolded traces_B_iff] obtain run where
-      run: "run \<in> runs l" "run \<noteq> []" "tr = map lbl run" "acc = accepted_events l (dst (last run))"
-      by auto
-    with r obtain run' where
-      run': "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
-      by (blast elim: simulation_B_maximal_similar_runs)
-    let ?tr' = "map lbl run'"
-    from run run' have 1: "length ?tr' \<le> length tr" "\<forall>i<length ?tr'. ?tr'!i = tr!i"
-      unfolding maximal_similar_runs_def sim_transition_def by auto
-    have "\<exists>acc'. (?tr', acc') \<in> traces_B l'
-               \<and> (if length ?tr' < length tr then tr!(length ?tr') \<notin> acc' else acc' \<subseteq> acc)"
-    proof (cases "run' = []")
-      case True
-      with run have len: "length run' < length run" "length ?tr' < length tr"  by auto
-      from run have "src (hd run) \<in> init l"  by (auto intro: run_starts_initial)
-      with r obtain s' where s': "s' \<in> init l'" "(src (hd run), s') \<in> r"
-        unfolding simulation_B_def by blast
-      let ?acc' = "accepted_events l' s'"
-      from s' True have "(?tr', ?acc') \<in> traces_B l'"
-        unfolding traces_B_iff by auto
-      moreover
-      from s' len run' True have "lbl (hd run) \<notin> ?acc'"
-        unfolding maximal_similar_runs_def by auto
-      ultimately show ?thesis
-        using True len run by (auto simp: hd_conv_nth)
-    next
-      case False
-      let ?acc' = "accepted_events l' (dst (last run'))"
-      from run' False have "(?tr', ?acc') \<in> traces_B l'"
-        unfolding traces_B_iff by auto
-      moreover
-      have "if length ?tr' < length tr then tr!(length ?tr') \<notin> ?acc' else ?acc' \<subseteq> acc"
-      proof
-        assume "length ?tr' < length tr"
-        with run run' False show "tr!(length ?tr') \<notin> ?acc'"
-          unfolding maximal_similar_runs_def by auto
-      next
-        assume "\<not>(length ?tr' < length tr)"
-        with 1 have len: "length ?tr' = length tr" by simp
-        with run run' False have "(last run, last run') \<in> sim_transition r"
-          unfolding maximal_similar_runs_def by (auto simp: last_conv_nth)
-        with r run show "?acc' \<subseteq> acc"
-          unfolding simulation_B_def sim_transition_def by auto
-      qed
-      ultimately show ?thesis by blast
-    qed
-    with 1 show ?thesis by blast
-  qed
+  from tr obtain run where 
+    run: "run \<in> runs l" "tr = trace_of run" "acc = accepted_events l (fins run)"
+    by (auto simp: traces_B_def)
+  with r obtain run' where
+    run': "run' \<in> runs l'" "maximal_similar_runs r l l' run run'"
+    by (blast dest: simulation_B_maximal_similar_runs)
+  let ?tr' = "trace_of run'"
+  let ?acc' = "accepted_events l' (fins run')"
+  from run' have "(?tr', ?acc') \<in> traces_B l'" by (auto simp: traces_B_def)
+  moreover
+  from run run' have "length ?tr' \<le> length tr" "\<forall>i < length ?tr'. ?tr'!i = tr!i"
+    unfolding maximal_similar_runs_def trace_of_def by auto
+  moreover
+  from r run run'
+  have "if length ?tr' = length tr then ?acc' \<subseteq> acc else tr ! (length ?tr') \<notin> ?acc'"
+    unfolding maximal_similar_runs_def simulation_B_def trace_of_def by auto
+  ultimately show ?thesis using that by blast
 qed
-
 
 (* 
   -------------------------------------------------------------------------
