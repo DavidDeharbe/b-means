@@ -147,11 +147,42 @@ inductive_set runs :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run set"
 text {* 
   The following lemma states that every run starts in an initial state of @{text l}.
 *}
-
 lemma run_starts_initial: 
   assumes "r \<in> runs l"
   shows "(if trns r = [] then fins r else fst (hd (trns r))) \<in> init l"
   using assms by (induct r, auto simp: append_tr_def hd_append)
+
+text {*
+  All steps in a run correspond to transitions of the LTS.
+*}
+lemma run_steps:
+  assumes "r \<in> runs l" and "i < length (trns r)"
+  shows "\<lparr> src = fst (trns r ! i), 
+           dst = (if Suc i < length (trns r) then fst (trns r ! (Suc i)) else fins r),
+           lbl = snd (trns r ! i) \<rparr>
+         \<in> trans l"
+     (is "?t r i \<in> trans l")
+proof -
+  {
+    fix run tr
+    assume run: "run \<in> runs l" and tr: "tr \<in> outgoing l (fins run)"
+       and i: "i < length (trns (append_tr run tr))"
+       and ih: "i < length (trns run) \<Longrightarrow> ?t run i \<in> trans l"
+    have "?t (append_tr run tr) i \<in> trans l"
+    proof (cases "i < length (trns run)")
+      case True with ih show ?thesis
+        by (auto simp: append_tr_def nth_append)
+    next
+      case False with i have len: "i = length (trns run)"
+        by (simp add: append_tr_def)
+      with tr have "?t (append_tr run tr) i = tr"
+        by (simp add: append_tr_def outgoing_def nth_append)
+      with tr show ?thesis
+        by (simp add: outgoing_def)
+    qed
+  }
+  with assms show ?thesis by (induct r, auto)
+qed
 
 text {*
   The set of runs is closed under prefixes.
