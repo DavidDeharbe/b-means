@@ -15,6 +15,6 @@ session "b-means" = "HOL" +
       document_variants="document:outline=/proof,/theory" ]
 (*  theories [document = false] *)
   theories
-    LTS Simulation Bmethod
+    LTSb Simulationb Bmethodb
   document_files
     "root.tex"

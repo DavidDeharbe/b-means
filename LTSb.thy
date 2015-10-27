@@ -35,7 +35,7 @@ text {*
 definition
   outgoing :: "('st, 'ev) LTS \<Rightarrow> 'st \<Rightarrow> ('st, 'ev) Tr set"
 where
-  "outgoing l \<equiv> \<lambda>s. { t | t . t \<in> trans l \<and> src t = s}"
+  "outgoing l \<equiv> \<lambda>s. { t \<in> trans l . src t = s}"
 
 text {*
   The function @{text "accepted_events"}, given an LTS and a state,
@@ -227,6 +227,31 @@ proof -
     by (induct r arbitrary: n, auto simp: append_tr_def)
 qed
 
+text {*
+  The reachable states are exactly the final states of runs.
+*}
+lemma states_runs_iff:
+  "s \<in> states l \<longleftrightarrow> s \<in> fins ` (runs l)"
+proof
+  assume "s \<in> states l" thus "s \<in> fins ` (runs l)"
+  proof (induct)
+    fix s'
+    assume "s' \<in> init l" thus "s' \<in> fins ` (runs l)"
+      using image_iff runs.start by fastforce
+  next
+    fix s' t
+    assume "s' \<in> fins ` (runs l)" "t \<in> outgoing l s'"
+    thus "dst t \<in> fins ` (runs l)"
+      by (metis (no_types, lifting) 
+            Run.select_convs(2) append_tr_def image_iff runs.step)
+  qed
+next
+  assume "s \<in> fins ` (runs l)"
+  then obtain run where "run \<in> runs l" "s = fins run" by blast
+  thus "s \<in> states l"
+    by (induct arbitrary: s, auto simp: append_tr_def intro: states.step)
+qed
+  
 
 subsubsection {* External behavior. *}
 
