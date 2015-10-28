@@ -230,28 +230,36 @@ qed
 text {*
   The reachable states are exactly the final states of runs.
 *}
-lemma states_runs_iff:
-  "s \<in> states l \<longleftrightarrow> s \<in> fins ` (runs l)"
+lemma states_runs:
+  "states l = fins ` (runs l)"  (is "?lhs = ?rhs")
 proof
-  assume "s \<in> states l" thus "s \<in> fins ` (runs l)"
-  proof (induct)
-    fix s'
-    assume "s' \<in> init l" thus "s' \<in> fins ` (runs l)"
-      using image_iff runs.start by fastforce
-  next
-    fix s' t
-    assume "s' \<in> fins ` (runs l)" "t \<in> outgoing l s'"
-    thus "dst t \<in> fins ` (runs l)"
-      by (metis (no_types, lifting) 
-            Run.select_convs(2) append_tr_def image_iff runs.step)
-  qed
+  {
+    fix s
+    assume "s \<in> ?lhs" hence "s \<in> ?rhs"
+    proof (induct)
+      fix s'
+      assume "s' \<in> init l" thus "s' \<in> ?rhs"
+        using image_iff runs.start by fastforce
+    next
+      fix s' t
+      assume "s' \<in> ?rhs" "t \<in> outgoing l s'"
+      thus "dst t \<in> ?rhs"
+        by (metis (no_types, lifting) 
+              Run.select_convs(2) append_tr_def image_iff runs.step)
+    qed
+  }
+  thus "?lhs \<subseteq> ?rhs" by blast
 next
-  assume "s \<in> fins ` (runs l)"
-  then obtain run where "run \<in> runs l" "s = fins run" by blast
-  thus "s \<in> states l"
-    by (induct arbitrary: s, auto simp: append_tr_def intro: states.step)
+  {
+    fix s
+    assume "s \<in> fins ` (runs l)"
+    then obtain run where "run \<in> runs l" "s = fins run" by blast
+    hence "s \<in> states l"
+      by (induct arbitrary: s, auto simp: append_tr_def intro: states.step)
+  }
+  thus "?rhs \<subseteq> ?lhs" by blast
 qed
-  
+
 
 subsubsection {* External behavior. *}
 
