@@ -88,6 +88,10 @@ proof -
   ultimately show ?thesis unfolding simulation_def by blast
 qed
 
+text {*
+  Generalizes sync_trs to handle multiple nested transition sets.
+*}
+
 definition
   synchro :: "('st,'ev) Tr set \<Rightarrow> ('st,'ev) Tr set list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list \<Rightarrow> 'st) \<Rightarrow> ('st, 'ev) Tr set"
 where
@@ -102,5 +106,61 @@ where
               (sync_ev (lbl t) ! i = Some e \<longrightarrow> 
                  \<lparr> src = srcl!i, dst = dstl!i, lbl = e \<rparr> \<in> tsl!i)))) }"
 
+text {*
+  A variation on the previous definition, where the relation between the states of the involved components
+  is a predicate. We could instantiate such predicate as a characterization of a list of projections of the
+  state of the top-level component to the states of the individual components.
+*}
+
+definition
+  synchro2 :: "('st,'ev) Tr set \<Rightarrow> ('st,'ev) Tr set list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list \<Rightarrow> bool) \<Rightarrow> ('st, 'ev) Tr set"
+where
+  "synchro2 ts tsl sync_ev sync_st \<equiv>
+   { t | t srcl dstl e
+     . t \<in> ts \<and> sync_st (src t) srcl \<and> sync_st (dst t) dstl \<and>
+       (\<forall> i . (0 \<le> i \<and> i < length tsl \<longrightarrow>
+             ((sync_ev (lbl t) ! i = None \<longrightarrow> srcl!i = dstl!i) \<and>
+              (sync_ev (lbl t) ! i = Some e \<longrightarrow> 
+                 \<lparr> src = srcl!i, dst = dstl!i, lbl = e \<rparr> \<in> tsl!i)))) }"
+
+text {*
+  This third definition is similar to the previous one. It defines a predicate that checks that
+  some transition t correctly ``synchronizes'' a list of transitions (that of the inner components),
+  given an event synchronization mapping, and a state mapping predicate.
+*}
+
+definition
+  synchro3 :: "('st,'ev) Tr \<Rightarrow> ('st,'ev) Tr list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list \<Rightarrow> bool) \<Rightarrow> bool"
+where
+  "synchro3 t trl sync_ev sync_st \<equiv>
+   sync_st (src t) (map src trl) \<and> sync_st (dst t) (map dst trl) \<and>
+       (\<forall> i . (0 \<le> i \<and> i < length trl \<longrightarrow>
+             (sync_ev (lbl t) ! i = None \<longrightarrow> src (trl!i) = dst (trl!i) \<or>
+              sync_ev (lbl t) ! i = Some (lbl (trl!i)))))"
+
+text {*
+  This fourth definition rephrases the previous one. Here the correspondence between states is
+  more direct: it is a mapping.
+*}
+
+definition
+  synchro4 :: "('st,'ev) Tr \<Rightarrow> ('st,'ev) Tr list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list) \<Rightarrow> bool"
+where
+  "synchro4 t trl sync_ev sync_st \<equiv>
+   sync_st (src t) = (map src trl) \<and> sync_st (dst t) = (map dst trl) \<and>
+       (\<forall> i . (0 \<le> i \<and> i < length trl \<longrightarrow>
+             (sync_ev (lbl t) ! i = None \<longrightarrow> src (trl!i) = dst (trl!i) \<or>
+              sync_ev (lbl t) ! i = Some (lbl (trl!i)))))"
+
+text {*
+  Same as before, but with list_all2 instead of quantification.
+*}
+
+definition
+  synchro5 :: "('st,'ev) Tr \<Rightarrow> ('st,'ev) Tr list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list) \<Rightarrow> bool"
+where
+  "synchro5 t trl sync_ev sync_st \<equiv>
+   sync_st (src t) = (map src trl) \<and> sync_st (dst t) = (map dst trl) \<and>
+       list_all2 (\<lambda> ei ti . ei = None \<longrightarrow> src ti = dst ti \<or> ei = Some (lbl ti)) (sync_ev (lbl t)) trl"
 
 end
