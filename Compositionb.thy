@@ -88,4 +88,19 @@ proof -
   ultimately show ?thesis unfolding simulation_def by blast
 qed
 
+definition
+  synchro :: "('st,'ev) Tr set \<Rightarrow> ('st,'ev) Tr set list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list \<Rightarrow> 'st) \<Rightarrow> ('st, 'ev) Tr set"
+where
+  "synchro ts tsl sync_ev sync_st \<equiv>
+   { \<lparr> src = sync_st (src t) srcl,
+       dst = sync_st (dst t) dstl,
+       lbl = lbl t \<rparr>
+     | t srcl dstl e
+     . t \<in> ts \<and> 
+       (\<forall> i . (0 \<le> i \<and> i < length tsl \<longrightarrow>
+             ((sync_ev (lbl t) ! i = None \<longrightarrow> srcl!i = dstl!i) \<and>
+              (sync_ev (lbl t) ! i = Some e \<longrightarrow> 
+                 \<lparr> src = srcl!i, dst = dstl!i, lbl = e \<rparr> \<in> tsl!i)))) }"
+
+
 end
