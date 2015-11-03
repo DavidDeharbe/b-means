@@ -99,12 +99,11 @@ where
    { \<lparr> src = sync_st (src t) srcl,
        dst = sync_st (dst t) dstl,
        lbl = lbl t \<rparr>
-     | t srcl dstl e
+     | t srcl dstl
      . t \<in> ts \<and> 
-       (\<forall> i . (0 \<le> i \<and> i < length tsl \<longrightarrow>
-             ((sync_ev (lbl t) ! i = None \<longrightarrow> srcl!i = dstl!i) \<and>
-              (sync_ev (lbl t) ! i = Some e \<longrightarrow> 
-                 \<lparr> src = srcl!i, dst = dstl!i, lbl = e \<rparr> \<in> tsl!i)))) }"
+       (\<forall>i < length tsl.
+           if sync_ev (lbl t) ! i = None then srcl!i = dstl!i
+           else \<lparr> src = srcl!i, dst = dstl!i, lbl = the (sync_ev (lbl t) ! i) \<rparr> \<in> tsl!i) }"
 
 text {*
   A variation on the previous definition, where the relation between the states of the involved components
@@ -116,12 +115,20 @@ definition
   synchro2 :: "('st,'ev) Tr set \<Rightarrow> ('st,'ev) Tr set list \<Rightarrow> ('ev \<Rightarrow> 'ev option list) \<Rightarrow> ('st \<Rightarrow> 'st list \<Rightarrow> bool) \<Rightarrow> ('st, 'ev) Tr set"
 where
   "synchro2 ts tsl sync_ev sync_st \<equiv>
+   { t \<in> ts . \<exists> srcl dstl. 
+       sync_st (src t) srcl \<and> sync_st (dst t) dstl \<and>
+       (\<forall>i < length tsl.
+           if sync_ev (lbl t) ! i = None then srcl!i = dstl!i
+           else \<lparr> src = srcl!i, dst = dstl!i, lbl = the (sync_ev (lbl t) ! i) \<rparr> \<in> tsl!i) }"
+(*
+  "synchro2 ts tsl sync_ev sync_st \<equiv>
    { t | t srcl dstl e
      . t \<in> ts \<and> sync_st (src t) srcl \<and> sync_st (dst t) dstl \<and>
        (\<forall> i . (0 \<le> i \<and> i < length tsl \<longrightarrow>
              ((sync_ev (lbl t) ! i = None \<longrightarrow> srcl!i = dstl!i) \<and>
               (sync_ev (lbl t) ! i = Some e \<longrightarrow> 
                  \<lparr> src = srcl!i, dst = dstl!i, lbl = e \<rparr> \<in> tsl!i)))) }"
+*)
 
 text {*
   This third definition is similar to the previous one. It defines a predicate that checks that
@@ -134,9 +141,9 @@ definition
 where
   "synchro3 t trl sync_ev sync_st \<equiv>
    sync_st (src t) (map src trl) \<and> sync_st (dst t) (map dst trl) \<and>
-       (\<forall> i . (0 \<le> i \<and> i < length trl \<longrightarrow>
-             (sync_ev (lbl t) ! i = None \<longrightarrow> src (trl!i) = dst (trl!i) \<or>
-              sync_ev (lbl t) ! i = Some (lbl (trl!i)))))"
+       (\<forall>i < length trl.
+             (sync_ev (lbl t) ! i = None \<and> src (trl!i) = dst (trl!i)) \<or>
+             sync_ev (lbl t) ! i = Some (lbl (trl!i)))"
 
 text {*
   This fourth definition rephrases the previous one. Here the correspondence between states is
@@ -148,9 +155,9 @@ definition
 where
   "synchro4 t trl sync_ev sync_st \<equiv>
    sync_st (src t) = (map src trl) \<and> sync_st (dst t) = (map dst trl) \<and>
-       (\<forall> i . (0 \<le> i \<and> i < length trl \<longrightarrow>
-             (sync_ev (lbl t) ! i = None \<longrightarrow> src (trl!i) = dst (trl!i) \<or>
-              sync_ev (lbl t) ! i = Some (lbl (trl!i)))))"
+       (\<forall>i < length trl.
+             (sync_ev (lbl t) ! i = None \<and> src (trl!i) = dst (trl!i)) \<or>
+             sync_ev (lbl t) ! i = Some (lbl (trl!i)))"
 
 text {*
   Same as before, but with list_all2 instead of quantification.
@@ -161,6 +168,6 @@ definition
 where
   "synchro5 t trl sync_ev sync_st \<equiv>
    sync_st (src t) = (map src trl) \<and> sync_st (dst t) = (map dst trl) \<and>
-       list_all2 (\<lambda> ei ti . ei = None \<longrightarrow> src ti = dst ti \<or> ei = Some (lbl ti)) (sync_ev (lbl t)) trl"
+       list_all2 (\<lambda> ei ti . (ei = None \<and> src ti = dst ti) \<or> ei = Some (lbl ti)) (sync_ev (lbl t)) trl"
 
 end
