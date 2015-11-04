@@ -170,32 +170,89 @@ where
    sync_st (src t) = (map src trl) \<and> sync_st (dst t) = (map dst trl) \<and>
        list_all2 (\<lambda> ei ti . (ei = None \<and> src ti = dst ti) \<or> ei = Some (lbl ti)) (sync_ev (lbl t)) trl"
 
+text {*
+  Part of the behavior of a LTS may be realized by another, imported, LTS. Record Import models such
+  relationship. Its first field is the imported LTS. The second field specifies how the state of
+  the importing and imported LTS are related, i.e. by means of a function from states (of the
+  importing LTS) to states (of the imported LTS). One can view such function as a projection.
+  The third and last field specifies whether an event of the importing LTS is associated with an event 
+  of the imported LTS. Notice that there is no field to represent the importing LTS. Import records
+  will always be used in contexts where this LTS is available.
+
+  The type for these relationships between states and events is directed by the characteristics of
+  the B construct "IMPORTS". The state of the importing component is composed of the value of the
+  state variables and of the state of the imported components. An operation of an importing component
+  may use at most one operation of each imported component.
+
+  Notice that nothing in the formalization prevents to associate several Import records to the
+  same LTS.
+*}
 record ('st, 'ev) Import =
   lts :: "('st, 'ev) LTS"         -- "imported LTS"
   sync_st :: "'st \<Rightarrow> 'st"         -- "state projection"
   sync_ev :: "'ev \<Rightarrow> 'ev option"  -- "event called from the imported LTS"
 
+text {*
+  Next we specify soundness conditions for an import of a LTS B, with respect to a given importing 
+  LTS A.
+  First, the projection of every initial state of A is an initial state in B.
+  Second, for each transition t of A, either it is not associated with an event of B, or it is 
+  associated to some event e of B. In that case, there must
+  be a transition in B labeled with e, such that the source and destination
+  states are state projections of the end states of the transition t.
+*}
 definition
   sound_import :: "('st,'ev) LTS \<Rightarrow> ('st,'ev) Import \<Rightarrow> bool"
 where
-  "sound_import ltsa import \<equiv>
-    (sync_st import) ` (init ltsa) \<subseteq> (init (lts import)) \<and>
-    (\<forall>t . t \<in> (trans ltsa) \<longrightarrow> 
-      (if (sync_ev import) (lbl t) = None then
-         (sync_st import) (src t) = (sync_st import) (dst t)
-       else
-         \<exists>t'. t'\<in> trans (lts import) \<and> 
-              (sync_st import) (src t) = (sync_st import) (src t') \<and> 
-              (sync_st import) (dst t) = (sync_st import) (dst t') \<and> 
-              (sync_ev import) (lbl t) = Some(lbl t')))"
+  "sound_import A import \<equiv>
+    (let (B, proj, sync) = (lts import, sync_st import, sync_ev import) in
+    proj ` (init A) \<subseteq> (init B) \<and>
+    (\<forall>t . t \<in> (trans A) \<longrightarrow> 
+      (case sync (lbl t) of
+         None \<Rightarrow> proj (src t) = proj (dst t)
+       | Some e \<Rightarrow> \<lparr> src = src t, dst = dst t, lbl = e \<rparr> \<in> trans B)))"
 
 text {*
-  Next ? 
-  - define a function that, given a run of a LTS, returns the corresponding interaction with
-  one of its imports.
-  - show that that such interactions are runs of the import LTS.
-  - show that every reachable state of a LTS with a sound import i projects to a reachable
-  state of the imported i.
+  Suppose LTS A imports LTS B. We want to show that, for every run of A, the interactions between 
+  A and B correspond to a run of B. We first give an auxiliary definition, that map 
+  lists of pairs of states and events of A to corresponding lists in B.
 *}
+primrec
+  interaction_trns :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st \<times> 'ev) list \<Rightarrow> ('st \<times> 'ev) list"
+where
+  "interaction_trns A import [] = []" |
+  "interaction_trns A import (x # xs) =
+    (case (sync_ev import) (snd x) of
+       None \<Rightarrow> interaction_trns A import xs |
+       Some e \<Rightarrow> ((sync_st import) (fst x), e) # (interaction_trns A import xs))"
+
+text {*
+  We can now define the desired function. It takes as input an LTS A, an import, a run of A and
+  yields a run of the imported LTS.
+*}
+definition
+  interaction :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st, 'ev) Run \<Rightarrow> ('st, 'ev) Run"
+where
+  "interaction ltsa import run \<equiv>
+    \<lparr> trns = interaction_trns ltsa import (trns run), fins = (sync_st import) (fins run) \<rparr>"
+
+text {*
+  Next are enunciated two potentially interesting theorems. The first theorem states that
+  for every run of A, giving rise to a run r', then r' is indeed a run of the imported LTS
+*}
+
+theorem interaction_runs
+  "\<lbrakk> r \<in> runs A; interaction A import r = r' \<rbrakk> \<Longrightarrow> r' \<in> runs (lts import)"
+sorry
+
+text {*
+  The second theorem states that every reachable state of A projects to a reachable state of
+  the imported LTS.
+*}
+
+theorem import_reachable
+  "\<lbrakk> s \<in> states A; sound_import A import \<rbrakk> \<Longrightarrow> (sync_st import) s \<in> states (lts import)"
+sorry
+
 
 end
