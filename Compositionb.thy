@@ -170,4 +170,32 @@ where
    sync_st (src t) = (map src trl) \<and> sync_st (dst t) = (map dst trl) \<and>
        list_all2 (\<lambda> ei ti . (ei = None \<and> src ti = dst ti) \<or> ei = Some (lbl ti)) (sync_ev (lbl t)) trl"
 
+record ('st, 'ev) Import =
+  lts :: "('st, 'ev) LTS"         -- "imported LTS"
+  sync_st :: "'st \<Rightarrow> 'st"         -- "state projection"
+  sync_ev :: "'ev \<Rightarrow> 'ev option"  -- "event called from the imported LTS"
+
+definition
+  sound_import :: "('st,'ev) LTS \<Rightarrow> ('st,'ev) Import \<Rightarrow> bool"
+where
+  "sound_import ltsa import \<equiv>
+    (sync_st import) ` (init ltsa) \<subseteq> (init (lts import)) \<and>
+    (\<forall>t . t \<in> (trans ltsa) \<longrightarrow> 
+      (if (sync_ev import) (lbl t) = None then
+         (sync_st import) (src t) = (sync_st import) (dst t)
+       else
+         \<exists>t'. t'\<in> trans (lts import) \<and> 
+              (sync_st import) (src t) = (sync_st import) (src t') \<and> 
+              (sync_st import) (dst t) = (sync_st import) (dst t') \<and> 
+              (sync_ev import) (lbl t) = Some(lbl t')))"
+
+text {*
+  Next ? 
+  - define a function that, given a run of a LTS, returns the corresponding interaction with
+  one of its imports.
+  - show that that such interactions are runs of the import LTS.
+  - show that every reachable state of a LTS with a sound import i projects to a reachable
+  state of the imported i.
+*}
+
 end
