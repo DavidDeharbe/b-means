@@ -237,22 +237,27 @@ where
     \<lparr> trns = interaction_trns ltsa import (trns run), fins = (sync_st import) (fins run) \<rparr>"
 
 text {*
-  Next are enunciated two potentially interesting theorems. The first theorem states that
-  for every run of A, giving rise to a run r', then r' is indeed a run of the imported LTS
+  Next are enunciated some potentially interesting theorems. The first theorem states that
+  for every reachable state s of A, for a given sound import of A, the projection of s on the
+  imported LTS is reachable.
 *}
 
-theorem interaction_runs
-  "\<lbrakk> r \<in> runs A; interaction A import r = r' \<rbrakk> \<Longrightarrow> r' \<in> runs (lts import)"
-sorry
+theorem interaction_states:
+assumes "s \<in> states A"
+    and "sound_import A import"
+    and "(sync_st import) s = s'"
+  shows "s' \<in> states (lts import)"
+sorry (* proof by induction on s *)
 
 text {*
-  The second theorem states that every reachable state of A projects to a reachable state of
-  the imported LTS.
+  The second theorem extends the result of the previous theorem to runs.
 *}
-
-theorem import_reachable
-  "\<lbrakk> s \<in> states A; sound_import A import \<rbrakk> \<Longrightarrow> (sync_st import) s \<in> states (lts import)"
+theorem interaction_runs:
+assumes "r \<in> runs A"
+    and "sound_import A import"
+    and "interaction A import r = r'"
+  shows "r' \<in> runs (lts import)"
+using assms unfolding interaction_def
 sorry
-
 
 end
