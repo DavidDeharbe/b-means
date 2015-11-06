@@ -241,13 +241,44 @@ text {*
   for every reachable state s of A, for a given sound import of A, the projection of s on the
   imported LTS is reachable.
 *}
-
+sledgehammer_params[provers="z3 cvc4 remote_vampire e spass"]
 theorem interaction_states:
 assumes "s \<in> states A"
     and "sound_import A import"
-    and "(sync_st import) s = s'"
-  shows "s' \<in> states (lts import)"
-sorry (* proof by induction on s *)
+  shows "(sync_st import) s \<in> states (lts import)"
+using assms
+proof(induction s)
+  fix s
+  assume "s \<in> init A" and "sound_import A import" 
+  then show "sync_st import s \<in> states (lts import)" unfolding sound_import_def by auto
+next
+  fix s t
+  show "s \<in> states A \<Longrightarrow>
+           (sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import)) \<Longrightarrow>
+           t \<in> outgoing A s \<Longrightarrow> sound_import A import \<Longrightarrow> sync_st import (dst t) \<in> states (lts import)"
+  proof(cases "(sync_ev import) (lbl t)")
+    assume h0: "s \<in> states A"
+       and h1: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
+       and h2: "t \<in> outgoing A s"
+       and h3: "sound_import A import"
+       and h4: "sync_ev import (lbl t) = None" 
+    then have "sync_st import s \<in> states (lts import)" by simp
+    with h0 h2 h3 h4 show "sync_st import (dst t) \<in> states (lts import)"
+      unfolding sound_import_def outgoing_def by auto
+  next
+    fix a
+    assume h0: "s \<in> states A"
+       and h1: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
+       and h2: "t \<in> outgoing A s"
+       and h3: "sound_import A import"
+       and h4: "sync_ev import (lbl t) = Some a" 
+    then have "sync_st import s \<in> states (lts import)" by simp
+    with h0 h2 h3 h4 show "sync_st import (dst t) \<in> states (lts import)"
+      using states.step unfolding sound_import_def outgoing_def sorry
+  qed
+qed
+   
+(*
 
 text {*
   The second theorem extends the result of the previous theorem to runs.
@@ -259,5 +290,5 @@ assumes "r \<in> runs A"
   shows "r' \<in> runs (lts import)"
 using assms unfolding interaction_def
 sorry
-
+*)
 end
