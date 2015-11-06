@@ -210,7 +210,7 @@ where
     (\<forall>t . t \<in> (trans A) \<longrightarrow> 
       (case sync (lbl t) of
          None \<Rightarrow> proj (src t) = proj (dst t)
-       | Some e \<Rightarrow> \<lparr> src = src t, dst = dst t, lbl = e \<rparr> \<in> trans B)))"
+       | Some e \<Rightarrow> \<lparr> src = proj(src t), dst = proj(dst t), lbl = e \<rparr> \<in> trans B)))"
 
 text {*
   Suppose LTS A imports LTS B. We want to show that, for every run of A, the interactions between 
@@ -267,14 +267,18 @@ next
       unfolding sound_import_def outgoing_def by auto
   next
     fix a
-    assume h0: "s \<in> states A"
-       and h1: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
-       and h2: "t \<in> outgoing A s"
-       and h3: "sound_import A import"
-       and h4: "sync_ev import (lbl t) = Some a" 
-    then have "sync_st import s \<in> states (lts import)" by simp
-    with h0 h2 h3 h4 show "sync_st import (dst t) \<in> states (lts import)"
-      using states.step unfolding sound_import_def outgoing_def sorry
+    assume 0: "s \<in> states A"
+       and 1: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
+       and 2: "t \<in> outgoing A s"
+       and 3: "sound_import A import"
+       and 4: "sync_ev import (lbl t) = Some a" 
+    from 0 2 have 5: "src t = s" unfolding outgoing_def by simp
+    from 0 2 have 6: "t \<in> trans A" unfolding outgoing_def by simp
+    with 3 4 have 7: "\<lparr> src = (sync_st import) (src t),
+                        dst = (sync_st import) (dst t),
+                        lbl = a \<rparr> \<in> trans (lts import)" unfolding sound_import_def by auto
+    from 1 3 5 have 8: "sync_st import (src t) \<in> states (lts import)" by simp
+    from 7 8 show  "sync_st import (dst t) \<in> states (lts import)" using states.induct sorry
   qed
 qed
    
