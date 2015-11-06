@@ -267,21 +267,19 @@ next
       unfolding sound_import_def outgoing_def by auto
   next
     fix a
-    assume 0: "s \<in> states A"
-       and 1: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
-       and 2: "t \<in> outgoing A s"
-       and 3: "sound_import A import"
-       and 4: "sync_ev import (lbl t) = Some a" 
-    from 0 2 have 5: "src t = s" unfolding outgoing_def by simp
-    from 0 2 have 6: "t \<in> trans A" unfolding outgoing_def by simp
-    with 3 4 have 7: "\<lparr> src = (sync_st import) (src t),
-                        dst = (sync_st import) (dst t),
-                        lbl = a \<rparr> \<in> trans (lts import)" unfolding sound_import_def by auto
-    from 1 3 5 have 8: "sync_st import (src t) \<in> states (lts import)" by simp
-    from 7 8 show  "sync_st import (dst t) \<in> states (lts import)" using states.induct sorry
+    assume s: "s \<in> states A"
+       and ih: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
+       and t: "t \<in> outgoing A s"
+       and sound: "sound_import A import"
+       and sync: "sync_ev import (lbl t) = Some a" 
+    let ?t = "\<lparr> src = (sync_st import) (src t), dst = (sync_st import) (dst t), lbl = a \<rparr>"
+    from s t sound sync have "?t \<in> trans (lts import)" unfolding outgoing_def sound_import_def by auto
+    then have outgoing: "?t \<in> outgoing (lts import) ((sync_st import) (src t))" unfolding outgoing_def by auto
+    from ih sound s t have "sync_st import (src t) \<in> states (lts import)" unfolding outgoing_def by simp
+    with outgoing show  "sync_st import (dst t) \<in> states (lts import)" using states.step by fastforce
   qed
 qed
-   
+
 (*
 
 text {*
