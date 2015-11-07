@@ -57,7 +57,7 @@ text {*
 inductive_set states :: "('st, 'ev) LTS \<Rightarrow> 'st set" 
   for l :: "('st, 'ev) LTS" where
   base[elim!]: "s \<in> init l \<Longrightarrow> s \<in> states l"
-| step[elim!]: "\<lbrakk>s \<in> states l; t \<in> outgoing l s\<rbrakk> \<Longrightarrow> dst t \<in> states l"
+| step[elim!]: "\<lbrakk> s \<in> states l; t \<in> outgoing l s \<rbrakk> \<Longrightarrow> dst t \<in> states l"
 
 inductive_cases base : "s \<in> states l"
 inductive_cases step : "dst t \<in> states l"
@@ -138,6 +138,21 @@ text {*
 
 definition append_tr :: "('st,'ev) Run \<Rightarrow> ('st,'ev) Tr \<Rightarrow> ('st,'ev) Run" where
   "append_tr run t \<equiv> \<lparr> trns = (trns run) @ [(fins run, lbl t)], fins = dst t \<rparr>"
+
+sledgehammer_params[provers="z3 cvc4 e spass remote_vampire"]
+
+lemma trns_append_tr:
+  assumes "src t = fins run"
+    shows "trns (append_tr run t) = trns run @ [(src t, lbl t)]"
+using assms
+unfolding append_tr_def
+by simp
+
+lemma fins_append_tr:
+  "fins (append_tr run t) = dst t"
+using assms
+unfolding append_tr_def
+by simp
 
 inductive_set runs :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Run set"  
   for l :: "('st, 'ev) LTS" where

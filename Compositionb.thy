@@ -226,6 +226,65 @@ where
        None \<Rightarrow> interaction_trns A import xs |
        Some e \<Rightarrow> ((sync_st import) (fst x), e) # (interaction_trns A import xs))"
 
+lemma app_interaction_trns:
+"interaction_trns A import (xs @ [x]) =
+  (case (sync_ev import) (snd x) of
+    None \<Rightarrow> interaction_trns A import xs |
+    Some e \<Rightarrow> (interaction_trns A import xs) @ [(sync_st import (fst x), e)])"
+proof(cases "sync_ev import (snd x)")
+  assume "sync_ev import (snd x) = None"
+  then show "interaction_trns A import (xs @ [x]) =
+    (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
+     | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
+  proof(induct xs)
+    assume "sync_ev import (snd x) = None"
+    then show "interaction_trns A import ([] @ [x]) =
+    (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import []
+     | Some e \<Rightarrow> interaction_trns A import [] @ [(sync_st import (fst x), e)])"
+    using interaction_trns.simps by simp
+  next
+    fix a xs
+    assume 0: "sync_ev import (snd x) = None \<Longrightarrow>
+             interaction_trns A import (xs @ [x]) =
+             (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
+              | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
+      and 1: "sync_ev import (snd x) = None"
+    then have 2: "interaction_trns A import (xs @ [x]) =
+             (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
+              | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])" by simp
+    with 1 interaction_trns.simps
+      show "interaction_trns A import ((a # xs) @ [x]) =
+              (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import (a # xs)
+               | Some e \<Rightarrow> interaction_trns A import (a # xs) @ [(sync_st import (fst x), e)])" 
+      by (simp add: option.case_eq_if)
+  qed
+next
+  fix a
+  assume "sync_ev import (snd x) = Some a"
+  then show "interaction_trns A import (xs @ [x]) =
+         (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
+          | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
+  proof(induct xs)
+    assume "sync_ev import (snd x) = Some a"
+    then show "interaction_trns A import ([] @ [x]) =
+    (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import []
+     | Some e \<Rightarrow> interaction_trns A import [] @ [(sync_st import (fst x), e)])"
+    using interaction_trns.simps by simp
+  next
+    fix aa xs
+    assume ih: "sync_ev import (snd x) = Some a \<Longrightarrow>
+              interaction_trns A import (xs @ [x]) =
+              (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
+               | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
+       and ev: " sync_ev import (snd x) = Some a"
+    then show "interaction_trns A import ((aa # xs) @ [x]) =
+             (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import (aa # xs)
+              | Some e \<Rightarrow> interaction_trns A import (aa # xs) @ [(sync_st import (fst x), e)])"
+      using interaction_trns.simps
+      by (simp add: option.case_eq_if)
+  qed
+qed
+
 text {*
   We can now define the desired function. It takes as input an LTS A, an import, a run of A and
   yields a run of the imported LTS.
@@ -280,17 +339,57 @@ next
   qed
 qed
 
-(*
-
 text {*
   The second theorem extends the result of the previous theorem to runs.
 *}
 theorem interaction_runs:
 assumes "r \<in> runs A"
     and "sound_import A import"
-    and "interaction A import r = r'"
-  shows "r' \<in> runs (lts import)"
+  shows "interaction A import r \<in> runs (lts import)"
 using assms unfolding interaction_def
-sorry
-*)
+proof(induct r)
+  fix s
+  assume s: "s \<in> init A"
+     and sound: "sound_import A import"
+    with runs.start have "\<lparr>trns = [], fins = sync_st import s\<rparr> \<in> runs (lts import)" 
+      unfolding sound_import_def by (metis (no_types, lifting) image_subset_iff splitD)
+    then show "\<lparr>trns = interaction_trns A import (trns \<lparr>trns = [], fins = s\<rparr>), fins = sync_st import (fins \<lparr>trns = [], fins = s\<rparr>)\<rparr> \<in> runs (lts import)" by simp
+next
+  fix run t
+  show "run \<in> runs A \<Longrightarrow>
+        (sound_import A import \<Longrightarrow>
+           \<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)) \<Longrightarrow>
+        t \<in> outgoing A (fins run) \<Longrightarrow>
+        sound_import A import \<Longrightarrow>
+        \<lparr>trns = interaction_trns A import (trns (append_tr run t)), fins = sync_st import (fins (append_tr run t))\<rparr>
+          \<in> runs (lts import) "
+    proof(cases "sync_ev import (lbl t)")
+      assume 0: "run \<in> runs A"
+         and 1: "sound_import A import \<Longrightarrow> \<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)"
+         and 2: "t \<in> outgoing A (fins run)"
+         and 3: "sound_import A import"
+         and 4: "sync_ev import (lbl t) = None"
+     from 1 3 have 5: "\<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)" by simp
+     from 2 3 4 have 6: "sync_st import (fins run) = sync_st import (fins (append_tr run t))" 
+       unfolding sound_import_def append_tr_def outgoing_def by auto 
+     from 2 trns_append_tr 
+       have 7: "interaction_trns A import (trns (append_tr run t)) = interaction_trns A import (trns run @ [(src t, lbl t)])"
+         unfolding outgoing_def by fastforce
+     from 4
+       have "interaction_trns A import (trns run  @ [(src t, lbl t)]) = interaction_trns A import (trns run)"
+       using app_interaction_trns by (simp add: app_interaction_trns)
+     with 5 6 7 runs.step show "\<lparr>trns = interaction_trns A import (trns (append_tr run t)), fins = sync_st import (fins (append_tr run t))\<rparr> \<in> runs (lts import)"
+       by simp
+   next
+     fix a
+      assume 0: "run \<in> runs A"
+         and 1: "sound_import A import \<Longrightarrow> \<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)"
+         and 2: "t \<in> outgoing A (fins run)"
+         and 3: "sound_import A import"
+         and 4: "sync_ev import (lbl t) = Some a" 
+     show "\<lparr>trns = interaction_trns A import (trns (append_tr run t)), fins = sync_st import (fins (append_tr run t))\<rparr> \<in> runs (lts import)"
+       sorry
+   qed
+qed
+
 end
