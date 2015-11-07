@@ -207,16 +207,24 @@ where
   "sound_import A import \<equiv>
     (let (B, proj, sync) = (lts import, sync_st import, sync_ev import) in
     proj ` (init A) \<subseteq> (init B) \<and>
-    (\<forall>t . t \<in> (trans A) \<longrightarrow> 
+    (\<forall>t \<in> trans A. 
       (case sync (lbl t) of
          None \<Rightarrow> proj (src t) = proj (dst t)
        | Some e \<Rightarrow> \<lparr> src = proj(src t), dst = proj(dst t), lbl = e \<rparr> \<in> trans B)))"
 
 text {*
   Suppose LTS A imports LTS B. We want to show that, for every run of A, the interactions between 
-  A and B correspond to a run of B. We first give an auxiliary definition, that map 
+  A and B correspond to a run of B. We first give an auxiliary definition, that maps 
   lists of pairs of states and events of A to corresponding lists in B.
 *}
+definition
+  interaction_trns :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st \<times> 'ev) list \<Rightarrow> ('st \<times> 'ev) list"
+where
+  "interaction_trns A import lst = 
+  map (\<lambda>(s,ev). (sync_st import s, the (sync_ev import ev)))
+      (filter (\<lambda>(s,ev). sync_ev import ev \<noteq> None) lst)"
+
+(*
 primrec
   interaction_trns :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st \<times> 'ev) list \<Rightarrow> ('st \<times> 'ev) list"
 where
@@ -225,65 +233,7 @@ where
     (case (sync_ev import) (snd x) of
        None \<Rightarrow> interaction_trns A import xs |
        Some e \<Rightarrow> ((sync_st import) (fst x), e) # (interaction_trns A import xs))"
-
-lemma app_interaction_trns:
-"interaction_trns A import (xs @ [x]) =
-  (case (sync_ev import) (snd x) of
-    None \<Rightarrow> interaction_trns A import xs |
-    Some e \<Rightarrow> (interaction_trns A import xs) @ [(sync_st import (fst x), e)])"
-proof(cases "sync_ev import (snd x)")
-  assume "sync_ev import (snd x) = None"
-  then show "interaction_trns A import (xs @ [x]) =
-    (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
-     | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
-  proof(induct xs)
-    assume "sync_ev import (snd x) = None"
-    then show "interaction_trns A import ([] @ [x]) =
-    (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import []
-     | Some e \<Rightarrow> interaction_trns A import [] @ [(sync_st import (fst x), e)])"
-    using interaction_trns.simps by simp
-  next
-    fix a xs
-    assume 0: "sync_ev import (snd x) = None \<Longrightarrow>
-             interaction_trns A import (xs @ [x]) =
-             (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
-              | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
-      and 1: "sync_ev import (snd x) = None"
-    then have 2: "interaction_trns A import (xs @ [x]) =
-             (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
-              | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])" by simp
-    with 1 interaction_trns.simps
-      show "interaction_trns A import ((a # xs) @ [x]) =
-              (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import (a # xs)
-               | Some e \<Rightarrow> interaction_trns A import (a # xs) @ [(sync_st import (fst x), e)])" 
-      by (simp add: option.case_eq_if)
-  qed
-next
-  fix a
-  assume "sync_ev import (snd x) = Some a"
-  then show "interaction_trns A import (xs @ [x]) =
-         (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
-          | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
-  proof(induct xs)
-    assume "sync_ev import (snd x) = Some a"
-    then show "interaction_trns A import ([] @ [x]) =
-    (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import []
-     | Some e \<Rightarrow> interaction_trns A import [] @ [(sync_st import (fst x), e)])"
-    using interaction_trns.simps by simp
-  next
-    fix aa xs
-    assume ih: "sync_ev import (snd x) = Some a \<Longrightarrow>
-              interaction_trns A import (xs @ [x]) =
-              (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import xs
-               | Some e \<Rightarrow> interaction_trns A import xs @ [(sync_st import (fst x), e)])"
-       and ev: " sync_ev import (snd x) = Some a"
-    then show "interaction_trns A import ((aa # xs) @ [x]) =
-             (case sync_ev import (snd x) of None \<Rightarrow> interaction_trns A import (aa # xs)
-              | Some e \<Rightarrow> interaction_trns A import (aa # xs) @ [(sync_st import (fst x), e)])"
-      using interaction_trns.simps
-      by (simp add: option.case_eq_if)
-  qed
-qed
+*)
 
 text {*
   We can now define the desired function. It takes as input an LTS A, an import, a run of A and
@@ -293,49 +243,40 @@ definition
   interaction :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st, 'ev) Run \<Rightarrow> ('st, 'ev) Run"
 where
   "interaction ltsa import run \<equiv>
-    \<lparr> trns = interaction_trns ltsa import (trns run), fins = (sync_st import) (fins run) \<rparr>"
+    \<lparr> trns = interaction_trns ltsa import (trns run), 
+      fins = sync_st import (fins run) \<rparr>"
 
 text {*
   Next are enunciated some potentially interesting theorems. The first theorem states that
   for every reachable state s of A, for a given sound import of A, the projection of s on the
   imported LTS is reachable.
 *}
-sledgehammer_params[provers="z3 cvc4 remote_vampire e spass"]
 theorem interaction_states:
-assumes "s \<in> states A"
-    and "sound_import A import"
+assumes s: "s \<in> states A" and imp: "sound_import A import"
   shows "(sync_st import) s \<in> states (lts import)"
-using assms
-proof(induction s)
+using s
+proof(induct s)
   fix s
-  assume "s \<in> init A" and "sound_import A import" 
-  then show "sync_st import s \<in> states (lts import)" unfolding sound_import_def by auto
+  assume "s \<in> init A" 
+  with imp show "sync_st import s \<in> states (lts import)"
+    unfolding sound_import_def by auto
 next
   fix s t
-  show "s \<in> states A \<Longrightarrow>
-           (sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import)) \<Longrightarrow>
-           t \<in> outgoing A s \<Longrightarrow> sound_import A import \<Longrightarrow> sync_st import (dst t) \<in> states (lts import)"
-  proof(cases "(sync_ev import) (lbl t)")
-    assume h0: "s \<in> states A"
-       and h1: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
-       and h2: "t \<in> outgoing A s"
-       and h3: "sound_import A import"
-       and h4: "sync_ev import (lbl t) = None" 
-    then have "sync_st import s \<in> states (lts import)" by simp
-    with h0 h2 h3 h4 show "sync_st import (dst t) \<in> states (lts import)"
+  assume ih: "(sync_st import) s \<in> states (lts import)"
+     and t: "t \<in> outgoing A s"
+  show "sync_st import (dst t) \<in> states (lts import)"
+  proof(cases "sync_ev import (lbl t)")
+    case None
+    with t ih imp show ?thesis
       unfolding sound_import_def outgoing_def by auto
   next
     fix a
-    assume s: "s \<in> states A"
-       and ih: "(sound_import A import \<Longrightarrow> sync_st import s \<in> states (lts import))" 
-       and t: "t \<in> outgoing A s"
-       and sound: "sound_import A import"
-       and sync: "sync_ev import (lbl t) = Some a" 
-    let ?t = "\<lparr> src = (sync_st import) (src t), dst = (sync_st import) (dst t), lbl = a \<rparr>"
-    from s t sound sync have "?t \<in> trans (lts import)" unfolding outgoing_def sound_import_def by auto
-    then have outgoing: "?t \<in> outgoing (lts import) ((sync_st import) (src t))" unfolding outgoing_def by auto
-    from ih sound s t have "sync_st import (src t) \<in> states (lts import)" unfolding outgoing_def by simp
-    with outgoing show  "sync_st import (dst t) \<in> states (lts import)" using states.step by fastforce
+    assume a: "sync_ev import (lbl t) = Some a" 
+    let ?t = "\<lparr> src = sync_st import s, dst = sync_st import (dst t), lbl = a \<rparr>"
+    from t imp a have "?t \<in> outgoing (lts import) (sync_st import s)"
+      unfolding outgoing_def sound_import_def by auto
+    with ih show  "sync_st import (dst t) \<in> states (lts import)"
+      by (auto dest: states.step)
   qed
 qed
 
@@ -343,53 +284,52 @@ text {*
   The second theorem extends the result of the previous theorem to runs.
 *}
 theorem interaction_runs:
-assumes "r \<in> runs A"
-    and "sound_import A import"
+assumes r: "r \<in> runs A" and imp: "sound_import A import"
   shows "interaction A import r \<in> runs (lts import)"
-using assms unfolding interaction_def
-proof(induct r)
+using r proof (induct)
   fix s
-  assume s: "s \<in> init A"
-     and sound: "sound_import A import"
-    with runs.start have "\<lparr>trns = [], fins = sync_st import s\<rparr> \<in> runs (lts import)" 
-      unfolding sound_import_def by (metis (no_types, lifting) image_subset_iff splitD)
-    then show "\<lparr>trns = interaction_trns A import (trns \<lparr>trns = [], fins = s\<rparr>), fins = sync_st import (fins \<lparr>trns = [], fins = s\<rparr>)\<rparr> \<in> runs (lts import)" by simp
+  assume "s \<in> init A"
+  with imp have "sync_st import s \<in> init (lts import)"
+    unfolding sound_import_def by auto
+  thus "interaction A import \<lparr>trns = [], fins = s\<rparr> \<in> runs (lts import)"
+    unfolding interaction_def interaction_trns_def by (auto intro: runs.start)
 next
   fix run t
-  show "run \<in> runs A \<Longrightarrow>
-        (sound_import A import \<Longrightarrow>
-           \<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)) \<Longrightarrow>
-        t \<in> outgoing A (fins run) \<Longrightarrow>
-        sound_import A import \<Longrightarrow>
-        \<lparr>trns = interaction_trns A import (trns (append_tr run t)), fins = sync_st import (fins (append_tr run t))\<rparr>
-          \<in> runs (lts import) "
-    proof(cases "sync_ev import (lbl t)")
-      assume 0: "run \<in> runs A"
-         and 1: "sound_import A import \<Longrightarrow> \<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)"
-         and 2: "t \<in> outgoing A (fins run)"
-         and 3: "sound_import A import"
-         and 4: "sync_ev import (lbl t) = None"
-     from 1 3 have 5: "\<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)" by simp
-     from 2 3 4 have 6: "sync_st import (fins run) = sync_st import (fins (append_tr run t))" 
-       unfolding sound_import_def append_tr_def outgoing_def by auto 
-     from 2 trns_append_tr 
-       have 7: "interaction_trns A import (trns (append_tr run t)) = interaction_trns A import (trns run @ [(src t, lbl t)])"
-         unfolding outgoing_def by fastforce
-     from 4
-       have "interaction_trns A import (trns run  @ [(src t, lbl t)]) = interaction_trns A import (trns run)"
-       using app_interaction_trns by (simp add: app_interaction_trns)
-     with 5 6 7 runs.step show "\<lparr>trns = interaction_trns A import (trns (append_tr run t)), fins = sync_st import (fins (append_tr run t))\<rparr> \<in> runs (lts import)"
-       by simp
-   next
-     fix a
-      assume 0: "run \<in> runs A"
-         and 1: "sound_import A import \<Longrightarrow> \<lparr>trns = interaction_trns A import (trns run), fins = sync_st import (fins run)\<rparr> \<in> runs (lts import)"
-         and 2: "t \<in> outgoing A (fins run)"
-         and 3: "sound_import A import"
-         and 4: "sync_ev import (lbl t) = Some a" 
-     show "\<lparr>trns = interaction_trns A import (trns (append_tr run t)), fins = sync_st import (fins (append_tr run t))\<rparr> \<in> runs (lts import)"
-       sorry
-   qed
+  assume ih: "interaction A import run \<in> runs (lts import)"
+     and t: "t \<in> outgoing A (fins run)"
+
+  show "interaction A import (append_tr run t) \<in> runs (lts import)"
+  proof (cases "sync_ev import (lbl t)")
+    case None
+    hence "interaction_trns A import (trns (append_tr run t)) =
+           interaction_trns A import (trns run)"
+      unfolding interaction_trns_def append_tr_def by auto
+    moreover
+    from None imp t
+    have "sync_st import (fins (append_tr run t)) = sync_st import (fins run)"
+      unfolding sound_import_def outgoing_def append_tr_def by auto
+    ultimately
+    show ?thesis using ih unfolding interaction_def by simp
+  next
+    fix a
+    assume a: "sync_ev import (lbl t) = Some a"
+    let ?s = "fins run"
+    let ?t = "\<lparr> src = sync_st import ?s, dst = sync_st import (dst t), lbl = a \<rparr>"
+    from t imp a have "?t \<in> outgoing (lts import) (sync_st import ?s)"
+      unfolding outgoing_def sound_import_def by auto
+    moreover
+    have "sync_st import ?s = fins (interaction A import run)"
+      unfolding interaction_def by simp
+    ultimately
+    have "append_tr (interaction A import run) ?t \<in> runs (lts import)"
+      using ih by (auto dest: runs.step)
+    moreover
+    from a have "interaction A import (append_tr run t) =
+                 append_tr (interaction A import run) ?t"
+      unfolding interaction_def interaction_trns_def append_tr_def
+      by auto
+    ultimately show ?thesis by simp
+  qed
 qed
 
 end
