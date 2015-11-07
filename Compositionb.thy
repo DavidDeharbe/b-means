@@ -171,30 +171,30 @@ where
        list_all2 (\<lambda> ei ti . (ei = None \<and> src ti = dst ti) \<or> ei = Some (lbl ti)) (sync_ev (lbl t)) trl"
 
 text {*
-  Part of the behavior of a LTS may be realized by another, imported, LTS. Record Import models such
-  relationship. Its first field is the imported LTS. The second field specifies how the state of
-  the importing and imported LTS are related, i.e. by means of a function from states (of the
-  importing LTS) to states (of the imported LTS). One can view such function as a projection.
-  The third and last field specifies whether an event of the importing LTS is associated with an event 
-  of the imported LTS. Notice that there is no field to represent the importing LTS. Import records
+  Part of the behavior of a LTS may be realized by another, included, LTS. Record Includes models such
+  relationship. Its first field is the includeded LTS. The second field specifies how the state of
+  the includeding and includeded LTS are related, i.e. by means of a function from states (of the
+  includeding LTS) to states (of the includeded LTS). One can view such function as a projection.
+  The third and last field specifies whether an event of the includeding LTS is associated with an event 
+  of the includeded LTS. Notice that there is no field to represent the includeding LTS. Import records
   will always be used in contexts where this LTS is available.
 
   The type for these relationships between states and events is directed by the characteristics of
-  the B construct "IMPORTS". The state of the importing component is composed of the value of the
-  state variables and of the state of the imported components. An operation of an importing component
-  may use at most one operation of each imported component.
+  the B construct "IMPORTS". The state of the includeding component is composed of the value of the
+  state variables and of the state of the includeded components. An operation of an includeding component
+  may use at most one operation of each includeded component.
 
   Notice that nothing in the formalization prevents to associate several Import records to the
   same LTS.
 *}
-record ('st, 'ev) Import =
-  lts :: "('st, 'ev) LTS"         -- "imported LTS"
+record ('st, 'ev) Includes =
+  lts :: "('st, 'ev) LTS"         -- "included LTS"
   sync_st :: "'st \<Rightarrow> 'st"         -- "state projection"
-  sync_ev :: "'ev \<Rightarrow> 'ev option"  -- "event called from the imported LTS"
+  sync_ev :: "'ev \<Rightarrow> 'ev option"  -- "event called from the includeded LTS"
 
 text {*
-  Next we specify soundness conditions for an import of a LTS B, with respect to a given importing 
-  LTS A.
+  Next we specify soundness conditions for an inclusion of a LTS B, with respect to a given 
+  including LTS A.
   First, the projection of every initial state of A is an initial state in B.
   Second, for each transition t of A, either it is not associated with an event of B, or it is 
   associated to some event e of B. In that case, there must
@@ -202,10 +202,10 @@ text {*
   states are state projections of the end states of the transition t.
 *}
 definition
-  sound_import :: "('st,'ev) LTS \<Rightarrow> ('st,'ev) Import \<Rightarrow> bool"
+  sound_includes :: "('st,'ev) LTS \<Rightarrow> ('st,'ev) Includes \<Rightarrow> bool"
 where
-  "sound_import A import \<equiv>
-    (let (B, proj, sync) = (lts import, sync_st import, sync_ev import) in
+  "sound_includes A included \<equiv>
+    (let (B, proj, sync) = (lts included, sync_st included, sync_ev included) in
     proj ` (init A) \<subseteq> (init B) \<and>
     (\<forall>t \<in> trans A. 
       (case sync (lbl t) of
@@ -213,16 +213,16 @@ where
        | Some e \<Rightarrow> \<lparr> src = proj(src t), dst = proj(dst t), lbl = e \<rparr> \<in> trans B)))"
 
 text {*
-  Suppose LTS A imports LTS B. We want to show that, for every run of A, the interactions between 
+  Suppose LTS A includes LTS B. We want to show that, for every run of A, the interactions between 
   A and B correspond to a run of B. We first give an auxiliary definition, that maps 
   lists of pairs of states and events of A to corresponding lists in B.
 *}
 definition
-  interaction_trns :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st \<times> 'ev) list \<Rightarrow> ('st \<times> 'ev) list"
+  interaction_trns :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Includes \<Rightarrow> ('st \<times> 'ev) list \<Rightarrow> ('st \<times> 'ev) list"
 where
-  "interaction_trns A import lst = 
-  map (\<lambda>(s,ev). (sync_st import s, the (sync_ev import ev)))
-      (filter (\<lambda>(s,ev). sync_ev import ev \<noteq> None) lst)"
+  "interaction_trns A included lst = 
+  map (\<lambda>(s,ev). (sync_st included s, the (sync_ev included ev)))
+      (filter (\<lambda>(s,ev). sync_ev included ev \<noteq> None) lst)"
 
 (*
 primrec
@@ -236,46 +236,46 @@ where
 *)
 
 text {*
-  We can now define the desired function. It takes as input an LTS A, an import, a run of A and
-  yields a run of the imported LTS.
+  We can now define the desired function. It takes as input an LTS A, an Includes, a run of A and
+  yields a run of the included LTS.
 *}
 definition
-  interaction :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st, 'ev) Run \<Rightarrow> ('st, 'ev) Run"
+  interaction :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Includes \<Rightarrow> ('st, 'ev) Run \<Rightarrow> ('st, 'ev) Run"
 where
-  "interaction ltsa import run \<equiv>
-    \<lparr> trns = interaction_trns ltsa import (trns run), 
-      fins = sync_st import (fins run) \<rparr>"
+  "interaction ltsa included run \<equiv>
+    \<lparr> trns = interaction_trns ltsa included (trns run), 
+      fins = sync_st included (fins run) \<rparr>"
 
 text {*
   Next are enunciated some potentially interesting theorems. The first theorem states that
-  for every reachable state s of A, for a given sound import of A, the projection of s on the
-  imported LTS is reachable.
+  for every reachable state s of A, for a given sound Includes of A, the projection of s on the
+  included LTS is reachable.
 *}
 theorem interaction_states:
-assumes s: "s \<in> states A" and imp: "sound_import A import"
-  shows "(sync_st import) s \<in> states (lts import)"
+assumes s: "s \<in> states A" and imp: "sound_includes A included"
+  shows "(sync_st included) s \<in> states (lts included)"
 using s
 proof(induct s)
   fix s
   assume "s \<in> init A" 
-  with imp show "sync_st import s \<in> states (lts import)"
-    unfolding sound_import_def by auto
+  with imp show "sync_st included s \<in> states (lts included)"
+    unfolding sound_includes_def by auto
 next
   fix s t
-  assume ih: "(sync_st import) s \<in> states (lts import)"
+  assume ih: "(sync_st included) s \<in> states (lts included)"
      and t: "t \<in> outgoing A s"
-  show "sync_st import (dst t) \<in> states (lts import)"
-  proof(cases "sync_ev import (lbl t)")
+  show "sync_st included (dst t) \<in> states (lts included)"
+  proof(cases "sync_ev included (lbl t)")
     case None
     with t ih imp show ?thesis
-      unfolding sound_import_def outgoing_def by auto
+      unfolding sound_includes_def outgoing_def by auto
   next
     fix a
-    assume a: "sync_ev import (lbl t) = Some a" 
-    let ?t = "\<lparr> src = sync_st import s, dst = sync_st import (dst t), lbl = a \<rparr>"
-    from t imp a have "?t \<in> outgoing (lts import) (sync_st import s)"
-      unfolding outgoing_def sound_import_def by auto
-    with ih show  "sync_st import (dst t) \<in> states (lts import)"
+    assume a: "sync_ev included (lbl t) = Some a" 
+    let ?t = "\<lparr> src = sync_st included s, dst = sync_st included (dst t), lbl = a \<rparr>"
+    from t imp a have "?t \<in> outgoing (lts included) (sync_st included s)"
+      unfolding outgoing_def sound_includes_def by auto
+    with ih show  "sync_st included (dst t) \<in> states (lts included)"
       by (auto dest: states.step)
   qed
 qed
@@ -284,48 +284,48 @@ text {*
   The second theorem extends the result of the previous theorem to runs.
 *}
 theorem interaction_runs:
-assumes r: "r \<in> runs A" and imp: "sound_import A import"
-  shows "interaction A import r \<in> runs (lts import)"
+assumes r: "r \<in> runs A" and imp: "sound_includes A included"
+  shows "interaction A included r \<in> runs (lts included)"
 using r proof (induct)
   fix s
   assume "s \<in> init A"
-  with imp have "sync_st import s \<in> init (lts import)"
-    unfolding sound_import_def by auto
-  thus "interaction A import \<lparr>trns = [], fins = s\<rparr> \<in> runs (lts import)"
+  with imp have "sync_st included s \<in> init (lts included)"
+    unfolding sound_includes_def by auto
+  thus "interaction A included \<lparr>trns = [], fins = s\<rparr> \<in> runs (lts included)"
     unfolding interaction_def interaction_trns_def by (auto intro: runs.start)
 next
   fix run t
-  assume ih: "interaction A import run \<in> runs (lts import)"
+  assume ih: "interaction A included run \<in> runs (lts included)"
      and t: "t \<in> outgoing A (fins run)"
 
-  show "interaction A import (append_tr run t) \<in> runs (lts import)"
-  proof (cases "sync_ev import (lbl t)")
+  show "interaction A included (append_tr run t) \<in> runs (lts included)"
+  proof (cases "sync_ev included (lbl t)")
     case None
-    hence "interaction_trns A import (trns (append_tr run t)) =
-           interaction_trns A import (trns run)"
+    hence "interaction_trns A included (trns (append_tr run t)) =
+           interaction_trns A included (trns run)"
       unfolding interaction_trns_def append_tr_def by auto
     moreover
     from None imp t
-    have "sync_st import (fins (append_tr run t)) = sync_st import (fins run)"
-      unfolding sound_import_def outgoing_def append_tr_def by auto
+    have "sync_st included (fins (append_tr run t)) = sync_st included (fins run)"
+      unfolding sound_includes_def outgoing_def append_tr_def by auto
     ultimately
     show ?thesis using ih unfolding interaction_def by simp
   next
     fix a
-    assume a: "sync_ev import (lbl t) = Some a"
+    assume a: "sync_ev included (lbl t) = Some a"
     let ?s = "fins run"
-    let ?t = "\<lparr> src = sync_st import ?s, dst = sync_st import (dst t), lbl = a \<rparr>"
-    from t imp a have "?t \<in> outgoing (lts import) (sync_st import ?s)"
-      unfolding outgoing_def sound_import_def by auto
+    let ?t = "\<lparr> src = sync_st included ?s, dst = sync_st included (dst t), lbl = a \<rparr>"
+    from t imp a have "?t \<in> outgoing (lts included) (sync_st included ?s)"
+      unfolding outgoing_def sound_includes_def by auto
     moreover
-    have "sync_st import ?s = fins (interaction A import run)"
+    have "sync_st included ?s = fins (interaction A included run)"
       unfolding interaction_def by simp
     ultimately
-    have "append_tr (interaction A import run) ?t \<in> runs (lts import)"
+    have "append_tr (interaction A included run) ?t \<in> runs (lts included)"
       using ih by (auto dest: runs.step)
     moreover
-    from a have "interaction A import (append_tr run t) =
-                 append_tr (interaction A import run) ?t"
+    from a have "interaction A included (append_tr run t) =
+                 append_tr (interaction A included run) ?t"
       unfolding interaction_def interaction_trns_def append_tr_def
       by auto
     ultimately show ?thesis by simp
