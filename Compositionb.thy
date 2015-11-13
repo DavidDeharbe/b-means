@@ -89,7 +89,7 @@ proof -
 qed
 
 text {*
-  Generalizes sync_trs to handle multiple nested transition sets.
+  Generalizes @{text "sync_trs"} to handle multiple nested transition sets.
 *}
 
 definition
@@ -160,7 +160,7 @@ where
              sync_ev (lbl t) ! i = Some (lbl (trl!i)))"
 
 text {*
-  Same as before, but with list_all2 instead of quantification.
+  Same as before, but with @{text "list_all2"} instead of quantification.
 *}
 
 definition
@@ -172,25 +172,25 @@ where
 
 text {*
   Part of the behavior of a LTS may be realized by another, included, LTS. Record Includes models such
-  relationship. Its first field is the includeded LTS. The second field specifies how the state of
-  the includeding and includeded LTS are related, i.e. by means of a function from states (of the
-  includeding LTS) to states (of the includeded LTS). One can view such function as a projection.
-  The third and last field specifies whether an event of the includeding LTS is associated with an event 
-  of the includeded LTS. Notice that there is no field to represent the includeding LTS. Import records
+  relationship. Its first field is the included LTS. The second field specifies how the state of
+  the including and included LTS are related, i.e. by means of a function from states (of the
+  including LTS) to states (of the included LTS). One can view such function as a projection.
+  The third and last field specifies whether an event of the including LTS is associated with an event 
+  of the included LTS. Notice that there is no field to represent the including LTS. Import records
   will always be used in contexts where this LTS is available.
 
   The type for these relationships between states and events is directed by the characteristics of
-  the B construct "IMPORTS". The state of the includeding component is composed of the value of the
-  state variables and of the state of the includeded components. An operation of an includeding component
-  may use at most one operation of each includeded component.
+  the B construct ``IMPORTS''. The state of the including component is composed of the value of the
+  state variables and of the state of the included components. An operation of an including component
+  may use at most one operation of each included component.
 
-  Notice that nothing in the formalization prevents to associate several Import records to the
+  Notice that nothing in the formalization prevents associating several Import records to the
   same LTS.
 *}
 record ('st, 'ev) Includes =
   lts :: "('st, 'ev) LTS"         -- "included LTS"
   sync_st :: "'st \<Rightarrow> 'st"         -- "state projection"
-  sync_ev :: "'ev \<Rightarrow> 'ev option"  -- "event called from the includeded LTS"
+  sync_ev :: "'ev \<Rightarrow> 'ev option"  -- "event called from the included LTS"
 
 text {*
   Next we specify soundness conditions for an inclusion of a LTS B, with respect to a given 
@@ -223,17 +223,6 @@ where
   "interaction_trns A included lst = 
   map (\<lambda>(s,ev). (sync_st included s, the (sync_ev included ev)))
       (filter (\<lambda>(s,ev). sync_ev included ev \<noteq> None) lst)"
-
-(*
-primrec
-  interaction_trns :: "('st, 'ev) LTS \<Rightarrow> ('st, 'ev) Import \<Rightarrow> ('st \<times> 'ev) list \<Rightarrow> ('st \<times> 'ev) list"
-where
-  "interaction_trns A import [] = []" |
-  "interaction_trns A import (x # xs) =
-    (case (sync_ev import) (snd x) of
-       None \<Rightarrow> interaction_trns A import xs |
-       Some e \<Rightarrow> ((sync_st import) (fst x), e) # (interaction_trns A import xs))"
-*)
 
 text {*
   We can now define the desired function. It takes as input an LTS A, an Includes, a run of A and
@@ -330,6 +319,37 @@ next
       by auto
     ultimately show ?thesis by simp
   qed
+qed
+
+text {*
+  This result is now lifted to the level of traces (observable behavior).
+*}
+theorem interaction_traces:
+assumes tr: "tr \<in> traces A" and imp: "sound_includes A included"
+  shows "map (the o sync_ev included) (filter (\<lambda>e. sync_ev included e \<noteq> None) tr)
+         \<in> traces (lts included)"   (is "?tr \<in> _")
+proof -
+  from tr obtain run where run: "run \<in> runs A" "tr = trace_of run"
+    unfolding traces_def by auto
+  from `run \<in> runs A` imp have "interaction A included run \<in> runs (lts included)"
+    by (blast dest: interaction_runs)
+  hence "trace_of (interaction A included run) \<in> traces (lts included)"
+    unfolding traces_def by auto
+  moreover
+  from `tr = trace_of run`
+  have 1: "filter (\<lambda>e. sync_ev included e \<noteq> None) tr =
+           map snd (filter ((\<lambda>e. sync_ev included e \<noteq> None) o snd) (trns run))"
+    unfolding trace_of_def by (auto simp: filter_map)
+   have 2: "(\<lambda>e. sync_ev included e \<noteq> None) o snd =
+            (\<lambda>(s,ev). sync_ev included ev \<noteq> None)"
+    by auto
+  from 1 2 have "filter (\<lambda>e. sync_ev included e \<noteq> None) tr =
+           map snd (filter (\<lambda>(s,ev). sync_ev included ev \<noteq> None) (trns run))"
+    by metis
+  hence "?tr = trace_of (interaction A included run)"
+    unfolding interaction_def interaction_trns_def trace_of_def
+    by auto
+  ultimately show ?thesis by simp
 qed
 
 end
