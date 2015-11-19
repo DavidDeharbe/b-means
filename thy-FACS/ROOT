@@ -4,7 +4,7 @@
    to produce the pdf document for these theories.
 ***********************************************************)
 
-session "b-means" = "HOL" +
+session "b-lts" = "HOL" +
   description
     "Semantics of the behavior of software components developed with the B method"
   options
